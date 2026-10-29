@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "119904698844",
+    "project_id": "singilbuddy",
+    "storage_bucket": "singilbuddy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119904698844:android:c8305925c80634de978f19",
+        "android_client_info": {
+          "package_name": "com.example.singilbuddy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "119904698844-g0dhig9f3i8r3tg87aud29si1lktm0n6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBejcqmn_x-KGNfJBvyIxHA-JZXeXMvfRo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "119904698844-g0dhig9f3i8r3tg87aud29si1lktm0n6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
