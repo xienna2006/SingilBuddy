@@ -40,13 +40,14 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-      apiKey: "AIzaSyCydhpDfF16GVCMs8npgILpM7Yx5xe2aPY",
+    apiKey: "AIzaSyCydhpDfF16GVCMs8npgILpM7Yx5xe2aPY",
     authDomain: "singilbuddy.firebaseapp.com",
     projectId: "singilbuddy",
+    databaseURL: "https://singilbuddy-default-rtdb.asia-southeast1.firebasedatabase.app",
     storageBucket: "singilbuddy.firebasestorage.app",
     messagingSenderId: "119904698844",
     appId: "1:119904698844:web:84b1337960522252978f19",
-    measurementId: "G-N305MPCD72"
+    measurementId: "G-N305MPCD72",
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -54,6 +55,7 @@ class DefaultFirebaseOptions {
     appId: '1:885841125558:android:489bba9cb7e00a9f43c617',
     messagingSenderId: '885841125558',
     projectId: 'singilbuddy',
+    databaseURL: 'https://singilbuddy-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'singilbuddy.firebasestorage.app',
   );
 
@@ -62,6 +64,7 @@ class DefaultFirebaseOptions {
     appId: '1:885841125558:ios:a38c988a9395e25443c617',
     messagingSenderId: '885841125558',
     projectId: 'singilbuddy',
+    databaseURL: 'https://singilbuddy-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'singilbuddy.firebasestorage.app',
     iosBundleId: 'com.example.singilBuddy',
   );
@@ -71,6 +74,7 @@ class DefaultFirebaseOptions {
     appId: '1:885841125558:ios:a38c988a9395e25443c617',
     messagingSenderId: '885841125558',
     projectId: 'singilbuddy',
+    databaseURL: 'https://singilbuddy-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'singilbuddy.firebasestorage.app',
     iosBundleId: 'com.example.singilBuddy',
   );
@@ -81,6 +85,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '885841125558',
     projectId: 'singilbuddy',
     authDomain: 'singilbuddy.firebaseapp.com',
+    databaseURL: 'https://singilbuddy-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'singilbuddy.firebasestorage.app',
     measurementId: 'G-N305MPCD72',
   );

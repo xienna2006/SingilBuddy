@@ -2,6 +2,7 @@
   "project_info": {
     "project_number": "119904698844",
     "project_id": "singilbuddy",
+    "firebase_url": "https://singilbuddy-default-rtdb.asia-southeast1.firebasedatabase.app",
     "storage_bucket": "singilbuddy.firebasestorage.app"
   },
   "client": [

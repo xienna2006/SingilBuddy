@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String apiUrl =
-      'https://6ab24f065b9b60f39d3487c5.mockapi.io/debts';
+  static const String databaseUrl =
+      'https://singilbuddy-default-rtdb.asia-southeast1.firebasedatabase.app';
+  static const String apiUrl = '$databaseUrl/debts.json';
 
-  Future<List<dynamic>> getDebts() async {
+  Future<dynamic> getDebts() async {
     final response = await http.get(Uri.parse(apiUrl));
 
     if (response.statusCode == 200) {
