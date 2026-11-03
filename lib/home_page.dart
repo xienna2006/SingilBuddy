@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'service_catalog_page.dart';
+import 'Services/rtdb_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -10,6 +12,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final RealtimeDatabaseService _rtdb = RealtimeDatabaseService();
+  StreamSubscription? _debtsSubscription;
+  StreamSubscription? _paidSubscription;
 
   static const Color primaryPink = Color(0xFFFF2D75);
   static const Color backgroundColor = Color(0xFFFFF5F7);
@@ -182,6 +187,31 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _syncPaidPeople();
+    _initFirebaseSync();
+  }
+
+  void _initFirebaseSync() {
+    _rtdb.seedIfEmpty(debts, paidPeople);
+
+    _debtsSubscription = _rtdb.debtsStream.listen((liveDebts) {
+      if (!mounted) return;
+      if (liveDebts.isNotEmpty) {
+        setState(() {
+          debts.clear();
+          debts.addAll(liveDebts);
+        });
+      }
+    });
+
+    _paidSubscription = _rtdb.paidPeopleStream.listen((livePaid) {
+      if (!mounted) return;
+      if (livePaid.isNotEmpty) {
+        setState(() {
+          paidPeople.clear();
+          paidPeople.addAll(livePaid);
+        });
+      }
+    });
   }
 
   void _syncPaidPeople() {
@@ -201,6 +231,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _debtsSubscription?.cancel();
+    _paidSubscription?.cancel();
     _debtSearchController.dispose();
     super.dispose();
   }
@@ -331,31 +363,38 @@ class _HomePageState extends State<HomePage> {
       (debt) => debt['name'].toString().toLowerCase() == name.toLowerCase(),
     );
 
-    setState(() {
-      if (existingIndex >= 0) {
-        final existing = debts[existingIndex];
-        existing['total'] = (existing['total'] as num).toDouble() + amount;
-        existing['description'] =
-            description.isEmpty ? existing['description'] : description;
-        existing['status'] = 'Active';
-      } else {
-        debts.add({
-          'name': name,
-          'description': description.isEmpty ? 'Personal debt' : description,
-          'total': amount,
-          'paid': 0.0,
-          'dueDate': 'Not set',
-          'promisedDate': null,
-          'status': 'Active',
-          'payments': [],
-        });
-      }
+    late final Map<String, dynamic> targetDebt;
 
+    if (existingIndex >= 0) {
+      final existing = debts[existingIndex];
+      existing['total'] = (existing['total'] as num).toDouble() + amount;
+      existing['description'] =
+          description.isEmpty ? existing['description'] : description;
+      existing['status'] = 'Active';
+      targetDebt = existing;
+    } else {
+      targetDebt = {
+        'name': name,
+        'description': description.isEmpty ? 'Personal debt' : description,
+        'total': amount,
+        'paid': 0.0,
+        'dueDate': 'Not set',
+        'promisedDate': null,
+        'status': 'Active',
+        'payments': [],
+      };
+      debts.add(targetDebt);
+    }
+
+    setState(() {
       paidPeople.removeWhere(
         (person) =>
             person['name'].toString().toLowerCase() == name.toLowerCase(),
       );
     });
+
+    _rtdb.saveDebt(targetDebt);
+    _rtdb.deletePaidPerson({'name': name});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2026,9 +2065,55 @@ class _HomePageState extends State<HomePage> {
                     '₱${remaining.toStringAsFixed(2)}',
                   ),
 
-                  _detailRow(
-                    'Due Date',
-                    debt['dueDate'],
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Due Date',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            debt['dueDate']?.toString() ?? 'Not set',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          if (!completed) ...[
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () {
+                                Navigator.pop(sheetContext);
+                                _setDueDate(debt);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: lightPink,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: borderPink),
+                                ),
+                                child: Text(
+                                  debt['dueDate'] == null ||
+                                          debt['dueDate'] == 'Not set'
+                                      ? 'Set Due Date'
+                                      : 'Change',
+                                  style: const TextStyle(
+                                    color: primaryPink,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
 
                   if (debt['promisedDate'] != null && !completed)
@@ -2398,6 +2483,57 @@ class _HomePageState extends State<HomePage> {
   }
 
 
+  Future<void> _setDueDate(
+    Map<String, dynamic> debt,
+  ) async {
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime initialDate = today.add(const Duration(days: 7));
+
+    final DateTime? selectedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: today,
+      lastDate: DateTime(now.year + 10, 12, 31),
+      helpText: 'Select Due Date (Optional)',
+      cancelText: 'Cancel',
+      confirmText: 'Set Due Date',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: primaryPink,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black87,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (selectedDate == null) {
+      return;
+    }
+
+    final formattedDate = _formatDate(selectedDate);
+
+    setState(() {
+      debt['dueDate'] = formattedDate;
+    });
+
+    _rtdb.saveDebt(debt);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Due date for ${debt['name']} updated to $formattedDate.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _setPromiseDate(
     Map<String, dynamic> debt,
   ) async {
@@ -2495,6 +2631,8 @@ class _HomePageState extends State<HomePage> {
       debt['promisedDate'] =
           formattedDate;
     });
+
+    _rtdb.saveDebt(debt);
 
     ScaffoldMessenger.of(context)
         .showSnackBar(
@@ -2698,6 +2836,8 @@ class _HomePageState extends State<HomePage> {
                   _archivePaidPerson(
                     debt,
                   );
+                } else {
+                  _rtdb.saveDebt(debt);
                 }
 
                 ScaffoldMessenger.of(
@@ -2734,6 +2874,7 @@ class _HomePageState extends State<HomePage> {
   void _showAddDebtForDebtorDialog(Map<String, dynamic> debt) {
     final amountController = TextEditingController();
     final descriptionController = TextEditingController();
+    DateTime? selectedDueDate;
 
     showDialog(
       context: context,
@@ -2743,84 +2884,208 @@ class _HomePageState extends State<HomePage> {
             'Add Debt for ${debt['name']}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: lightPink,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: borderPink),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.person,
-                        color: primaryPink,
-                        size: 20,
+          content: StatefulBuilder(
+            builder: (BuildContext dialogContext, StateSetter setDialogState) {
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      decoration: BoxDecoration(
+                        color: lightPink,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: borderPink),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.person,
+                            color: primaryPink,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  debt['name']?.toString() ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                Text(
+                                  'Current remaining: ₱${((debt['total'] as num).toDouble() - (debt['paid'] as num).toDouble()).toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: amountController,
+                      autofocus: true,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Additional Debt Amount',
+                        prefixText: '₱ ',
+                        prefixIcon: const Icon(Icons.payments),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: InputDecoration(
+                        labelText: 'Reason / Note (optional)',
+                        hintText: 'e.g. Groceries, Lunch, Emergency loan',
+                        prefixIcon: const Icon(Icons.notes),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () async {
+                        final now = DateTime.now();
+                        final today = DateTime(now.year, now.month, now.day);
+                        final initial = (selectedDueDate != null &&
+                                !selectedDueDate!.isBefore(today))
+                            ? selectedDueDate!
+                            : today.add(const Duration(days: 7));
+
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: initial,
+                          firstDate: today,
+                          lastDate: DateTime(now.year + 10, 12, 31),
+                          helpText: 'Select Due Date (Optional)',
+                          cancelText: 'Cancel',
+                          confirmText: 'Set Due Date',
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: primaryPink,
+                                  onPrimary: Colors.white,
+                                  surface: Colors.white,
+                                  onSurface: Colors.black87,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedDueDate = picked;
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selectedDueDate != null
+                              ? lightPink
+                              : Colors.grey.shade50,
+                          border: Border.all(
+                            color: selectedDueDate != null
+                                ? primaryPink
+                                : Colors.grey.shade400,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              debt['name']?.toString() ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              color: selectedDueDate != null
+                                  ? primaryPink
+                                  : Colors.grey.shade600,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedDueDate == null
+                                        ? 'Set Due Date (Optional)'
+                                        : 'Due: ${_formatDate(selectedDueDate!)}',
+                                    style: TextStyle(
+                                      color: selectedDueDate != null
+                                          ? primaryPink
+                                          : Colors.black87,
+                                      fontWeight: selectedDueDate != null
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    selectedDueDate == null
+                                        ? 'Current: ${debt['dueDate'] ?? 'Not set'}'
+                                        : 'Tap to change deadline',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              'Current remaining: ₱${((debt['total'] as num).toDouble() - (debt['paid'] as num).toDouble()).toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black54,
+                            if (selectedDueDate != null)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                ),
+                                color: primaryPink,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Clear due date',
+                                onPressed: () {
+                                  setDialogState(() {
+                                    selectedDueDate = null;
+                                  });
+                                },
+                              )
+                            else
+                              const Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.grey,
                               ),
-                            ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: amountController,
-                  autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Additional Debt Amount',
-                    prefixText: '₱ ',
-                    prefixIcon: const Icon(Icons.payments),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(
-                    labelText: 'Reason / Note (optional)',
-                    hintText: 'e.g. Groceries, Lunch, Emergency loan',
-                    prefixIcon: const Icon(Icons.notes),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
           actions: [
             TextButton(
@@ -2849,8 +3114,13 @@ class _HomePageState extends State<HomePage> {
                   if (desc.isNotEmpty) {
                     debt['description'] = desc;
                   }
+                  if (selectedDueDate != null) {
+                    debt['dueDate'] = _formatDate(selectedDueDate!);
+                  }
                   debt['status'] = 'Active';
                 });
+
+                _rtdb.saveDebt(debt);
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -2887,6 +3157,8 @@ class _HomePageState extends State<HomePage> {
     final descriptionController =
         TextEditingController(text: initialDescription ?? '');
 
+    DateTime? selectedDueDate;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -2897,113 +3169,239 @@ class _HomePageState extends State<HomePage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (serviceCatalog.isNotEmpty) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Templates from Catalog:',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black54,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pop(dialogContext);
-                          _openServiceCatalog();
-                        },
-                        child: const Text(
-                          'View Catalog >',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: primaryPink,
+          content: StatefulBuilder(
+            builder: (BuildContext dialogContext, StateSetter setDialogState) {
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (serviceCatalog.isNotEmpty) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Templates from Catalog:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black54,
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: serviceCatalog.map((item) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 6.0),
-                          child: ActionChip(
-                            avatar: Icon(
-                              item['icon'] as IconData? ?? Icons.design_services_rounded,
-                              size: 14,
-                              color: primaryPink,
-                            ),
-                            label: Text(
-                              '${item['title']} (₱${(item['defaultAmount'] as num).toStringAsFixed(0)})',
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            backgroundColor: lightPink,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: const BorderSide(color: borderPink),
-                            ),
-                            onPressed: () {
-                              amountController.text =
-                                  (item['defaultAmount'] as num).toStringAsFixed(2);
-                              descriptionController.text =
-                                  item['title'] as String;
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pop(dialogContext);
+                              _openServiceCatalog();
                             },
+                            child: const Text(
+                              'View Catalog >',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: primaryPink,
+                              ),
+                            ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: serviceCatalog.map((item) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6.0),
+                              child: ActionChip(
+                                avatar: Icon(
+                                  item['icon'] as IconData? ??
+                                      Icons.design_services_rounded,
+                                  size: 14,
+                                  color: primaryPink,
+                                ),
+                                label: Text(
+                                  '${item['title']} (₱${(item['defaultAmount'] as num).toStringAsFixed(0)})',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                backgroundColor: lightPink,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: const BorderSide(color: borderPink),
+                                ),
+                                onPressed: () {
+                                  amountController.text =
+                                      (item['defaultAmount'] as num)
+                                          .toStringAsFixed(2);
+                                  descriptionController.text =
+                                      item['title'] as String;
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Person Name',
+                        prefixIcon: const Icon(Icons.person),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Debt Amount',
+                        prefixText: '₱ ',
+                        prefixIcon: const Icon(Icons.payments),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: 'Description',
+                        prefixIcon: const Icon(Icons.notes),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () async {
+                        final now = DateTime.now();
+                        final today = DateTime(now.year, now.month, now.day);
+                        final initial = (selectedDueDate != null &&
+                                !selectedDueDate!.isBefore(today))
+                            ? selectedDueDate!
+                            : today.add(const Duration(days: 7));
+
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: initial,
+                          firstDate: today,
+                          lastDate: DateTime(now.year + 10, 12, 31),
+                          helpText: 'Select Due Date (Optional)',
+                          cancelText: 'Cancel',
+                          confirmText: 'Set Due Date',
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: primaryPink,
+                                  onPrimary: Colors.white,
+                                  surface: Colors.white,
+                                  onSurface: Colors.black87,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
                         );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Person Name',
-                    prefixIcon: const Icon(Icons.person),
-                    border: OutlineInputBorder(
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedDueDate = picked;
+                          });
+                        }
+                      },
                       borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selectedDueDate != null
+                              ? lightPink
+                              : Colors.grey.shade50,
+                          border: Border.all(
+                            color: selectedDueDate != null
+                                ? primaryPink
+                                : Colors.grey.shade400,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              color: selectedDueDate != null
+                                  ? primaryPink
+                                  : Colors.grey.shade600,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedDueDate == null
+                                        ? 'Set Due Date (Optional)'
+                                        : 'Due: ${_formatDate(selectedDueDate!)}',
+                                    style: TextStyle(
+                                      color: selectedDueDate != null
+                                          ? primaryPink
+                                          : Colors.black87,
+                                      fontWeight: selectedDueDate != null
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    selectedDueDate == null
+                                        ? 'Tap to pick a payment deadline'
+                                        : 'Tap to change deadline',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (selectedDueDate != null)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                ),
+                                color: primaryPink,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Clear due date',
+                                onPressed: () {
+                                  setDialogState(() {
+                                    selectedDueDate = null;
+                                  });
+                                },
+                              )
+                            else
+                              const Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.grey,
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amountController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Debt Amount',
-                    prefixText: '₱ ',
-                    prefixIcon: const Icon(Icons.payments),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: 'Description',
-                    prefixIcon: const Icon(Icons.notes),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
 
           actions: [
@@ -3060,65 +3458,49 @@ class _HomePageState extends State<HomePage> {
                       name.toLowerCase(),
                 );
 
-                setState(() {
-                  if (existingIndex >=
-                      0) {
+                final dueDateString = selectedDueDate != null
+                    ? _formatDate(selectedDueDate!)
+                    : 'Not set';
 
-                    final existing =
-                        debts[
-                            existingIndex];
+                late final Map<String, dynamic> targetDebt;
 
-                    existing['total'] =
-                        (existing['total']
-                                as num)
-                            .toDouble() +
-                            amount;
-
-                    existing['description'] =
-                        description.isEmpty
-                            ? existing[
-                                'description']
-                            : description;
-
-                    existing['status'] =
-                        'Active';
-
-
-                  } else {
-
-                    debts.add({
-                      'name': name,
-
-                      'description':
-                          description.isEmpty
-                              ? 'Personal debt'
-                              : description,
-
-                      'total': amount,
-
-                      'paid': 0.0,
-
-                      'dueDate':
-                          'Not set',
-
-                      'promisedDate':
-                          null,
-
-                      'status':
-                          'Active',
-
-                      'payments': [],
-                    });
+                if (existingIndex >= 0) {
+                  final existing = debts[existingIndex];
+                  existing['total'] =
+                      (existing['total'] as num).toDouble() + amount;
+                  existing['description'] = description.isEmpty
+                      ? existing['description']
+                      : description;
+                  existing['status'] = 'Active';
+                  if (selectedDueDate != null) {
+                    existing['dueDate'] = dueDateString;
                   }
+                  targetDebt = existing;
+                } else {
+                  targetDebt = {
+                    'name': name,
+                    'description':
+                        description.isEmpty ? 'Personal debt' : description,
+                    'total': amount,
+                    'paid': 0.0,
+                    'dueDate': dueDateString,
+                    'promisedDate': null,
+                    'status': 'Active',
+                    'payments': [],
+                  };
+                  debts.add(targetDebt);
+                }
+
+                setState(() {
+                  paidPeople.removeWhere(
+                    (person) =>
+                        person['name'].toString().toLowerCase() ==
+                        name.toLowerCase(),
+                  );
                 });
 
-                paidPeople.removeWhere(
-                  (person) =>
-                      person['name']
-                          .toString()
-                          .toLowerCase() ==
-                      name.toLowerCase(),
-                );
+                _rtdb.saveDebt(targetDebt);
+                _rtdb.deletePaidPerson({'name': name});
 
                 Navigator.pop(
                   dialogContext,
@@ -3184,6 +3566,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     debts.remove(debt);
+    _rtdb.archivePaidPerson(debt);
 
     setState(() {});
   }
@@ -3222,6 +3605,7 @@ class _HomePageState extends State<HomePage> {
                 setState(() {
                   debts.remove(debt);
                 });
+                _rtdb.deleteDebt(debt);
 
                 Navigator.pop(
                   dialogContext,
@@ -3721,35 +4105,41 @@ class _HomePageState extends State<HomePage> {
     String description,
   ) {
     final name = person['name'].toString();
+    late final Map<String, dynamic> targetDebt;
+
+    final existingIndex = debts.indexWhere(
+      (debt) =>
+          debt['name'].toString().toLowerCase() == name.toLowerCase(),
+    );
+
+    if (existingIndex >= 0) {
+      final existing = debts[existingIndex];
+      existing['total'] = (existing['total'] as num).toDouble() + amount;
+      existing['description'] =
+          description.isEmpty ? existing['description'] : description;
+      existing['status'] = 'Active';
+      existing['promisedDate'] = null;
+      targetDebt = existing;
+    } else {
+      targetDebt = {
+        'name': name,
+        'description':
+            description.isEmpty ? 'Personal debt' : description,
+        'total': amount,
+        'paid': 0.0,
+        'dueDate': 'Not set',
+        'promisedDate': null,
+        'status': 'Active',
+        'payments': [],
+      };
+      debts.add(targetDebt);
+    }
+
     setState(() {
       paidPeople.remove(person);
-
-      final existingIndex = debts.indexWhere(
-        (debt) =>
-            debt['name'].toString().toLowerCase() == name.toLowerCase(),
-      );
-
-      if (existingIndex >= 0) {
-        final existing = debts[existingIndex];
-        existing['total'] = (existing['total'] as num).toDouble() + amount;
-        existing['description'] =
-            description.isEmpty ? existing['description'] : description;
-        existing['status'] = 'Active';
-        existing['promisedDate'] = null;
-      } else {
-        debts.add({
-          'name': name,
-          'description':
-              description.isEmpty ? 'Personal debt' : description,
-          'total': amount,
-          'paid': 0.0,
-          'dueDate': 'Not set',
-          'promisedDate': null,
-          'status': 'Active',
-          'payments': [],
-        });
-      }
     });
+
+    _rtdb.reactivatePaidPerson(person, targetDebt);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -3767,6 +4157,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       paidPeople.remove(person);
     });
+    _rtdb.deletePaidPerson(person);
   }
 
 
