@@ -26,8 +26,13 @@ class RealtimeDatabaseService {
     List<Map<String, dynamic>> initialPaid,
   ) async {
     try {
-      final snapshot = await debtsRef.get();
-      if (!snapshot.exists || snapshot.value == null) {
+      final debtsSnap = await debtsRef.get();
+      final paidSnap = await paidPeopleRef.get();
+
+      final bool debtsEmpty = !debtsSnap.exists || debtsSnap.value == null;
+      final bool paidEmpty = !paidSnap.exists || paidSnap.value == null;
+
+      if (debtsEmpty && paidEmpty) {
         for (final debt in initialDebts) {
           final newRef = debtsRef.push();
           final data = Map<String, dynamic>.from(debt);
@@ -49,20 +54,97 @@ class RealtimeDatabaseService {
       debugPrint('RealtimeDatabase seed error: $e');
     }
   }
+  
+  /// Automatically clean up any existing duplicate entries in Firebase RTDB based on debtor name
+  Future<void> cleanupDuplicates() async {
+    try {
+      // 1. Deduplicate paidPeople in Firebase
+      final paidSnapshot = await paidPeopleRef.get();
+      if (paidSnapshot.value is Map) {
+        final Map<String, String> seenPaid = {};
+        final List<String> toRemove = [];
+        (paidSnapshot.value as Map).forEach((k, v) {
+          if (v is Map && v['name'] != null) {
+            final name = v['name'].toString().toLowerCase().trim();
+            if (name.isNotEmpty) {
+              if (seenPaid.containsKey(name)) {
+                toRemove.add(k.toString());
+              } else {
+                seenPaid[name] = k.toString();
+              }
+            }
+          }
+        });
+        for (final k in toRemove) {
+          await paidPeopleRef.child(k).remove();
+        }
+        if (toRemove.isNotEmpty) {
+          debugPrint('RealtimeDatabase: Cleaned ${toRemove.length} duplicate paidPeople from Firebase.');
+        }
+      }
 
-  /// Stream of active debts from Firebase
+      // 2. Deduplicate debts in Firebase
+      final debtsSnapshot = await debtsRef.get();
+      if (debtsSnapshot.value is Map) {
+        final Map<String, String> seenDebts = {};
+        final List<String> toRemove = [];
+        (debtsSnapshot.value as Map).forEach((k, v) {
+          if (v is Map && v['name'] != null) {
+            final name = v['name'].toString().toLowerCase().trim();
+            if (name.isNotEmpty) {
+              if (seenDebts.containsKey(name)) {
+                toRemove.add(k.toString());
+              } else {
+                seenDebts[name] = k.toString();
+              }
+            }
+          }
+        });
+        for (final k in toRemove) {
+          await debtsRef.child(k).remove();
+        }
+        if (toRemove.isNotEmpty) {
+          debugPrint('RealtimeDatabase: Cleaned ${toRemove.length} duplicate debts from Firebase.');
+        }
+      }
+    } catch (e) {
+      debugPrint('RealtimeDatabase cleanupDuplicates error: $e');
+    }
+  }
+
+  /// Stream of active debts from Firebase (deduplicated by debtor name)
   Stream<List<Map<String, dynamic>>> get debtsStream {
     return debtsRef.onValue.map((event) {
       if (event.snapshot.value == null) return <Map<String, dynamic>>[];
-      return _parseList(event.snapshot);
+      final rawList = _parseList(event.snapshot);
+      final Map<String, Map<String, dynamic>> unique = {};
+      for (final item in rawList) {
+        final key = (item['name']?.toString().toLowerCase().trim() ?? '');
+        if (key.isNotEmpty) {
+          unique[key] = item;
+        } else if (item['id'] != null) {
+          unique[item['id'].toString()] = item;
+        }
+      }
+      return unique.values.toList();
     });
   }
 
-  /// Stream of paid people records from Firebase
+  /// Stream of paid people records from Firebase (deduplicated by debtor name)
   Stream<List<Map<String, dynamic>>> get paidPeopleStream {
     return paidPeopleRef.onValue.map((event) {
       if (event.snapshot.value == null) return <Map<String, dynamic>>[];
-      return _parseList(event.snapshot);
+      final rawList = _parseList(event.snapshot);
+      final Map<String, Map<String, dynamic>> unique = {};
+      for (final item in rawList) {
+        final key = (item['name']?.toString().toLowerCase().trim() ?? '');
+        if (key.isNotEmpty) {
+          unique[key] = item;
+        } else if (item['id'] != null) {
+          unique[item['id'].toString()] = item;
+        }
+      }
+      return unique.values.toList();
     });
   }
 
@@ -131,10 +213,28 @@ class RealtimeDatabaseService {
   /// Save or update an active debt in Firebase
   Future<String> saveDebt(Map<String, dynamic> debt) async {
     try {
-      final String id =
-          (debt['id'] != null && debt['id'].toString().isNotEmpty)
-              ? debt['id'].toString()
-              : debtsRef.push().key!;
+      final name = debt['name']?.toString().toLowerCase().trim() ?? '';
+      String id = (debt['id'] != null && debt['id'].toString().isNotEmpty)
+          ? debt['id'].toString()
+          : '';
+
+      // If id is empty, check if debtor with this name already exists in debtsRef
+      if (id.isEmpty && name.isNotEmpty) {
+        final snapshot = await debtsRef.get();
+        if (snapshot.value is Map) {
+          (snapshot.value as Map).forEach((k, v) {
+            if (v is Map &&
+                v['name']?.toString().toLowerCase().trim() == name) {
+              id = k.toString();
+            }
+          });
+        }
+      }
+
+      if (id.isEmpty) {
+        id = debtsRef.push().key!;
+      }
+
       debt['id'] = id;
       await debtsRef.child(id).set(Map<String, dynamic>.from(debt));
       return id;
@@ -148,13 +248,17 @@ class RealtimeDatabaseService {
   Future<void> deleteDebt(Map<String, dynamic> debt) async {
     try {
       final id = debt['id']?.toString();
+      final name = debt['name']?.toString().toLowerCase().trim();
+
       if (id != null && id.isNotEmpty) {
         await debtsRef.child(id).remove();
-      } else {
+      }
+      if (name != null && name.isNotEmpty) {
         final snapshot = await debtsRef.get();
         if (snapshot.value is Map) {
           (snapshot.value as Map).forEach((k, v) {
-            if (v is Map && v['name'] == debt['name']) {
+            if (v is Map &&
+                v['name']?.toString().toLowerCase().trim() == name) {
               debtsRef.child(k.toString()).remove();
             }
           });
@@ -165,17 +269,32 @@ class RealtimeDatabaseService {
     }
   }
 
-  /// Move a debt to the paidPeople collection in Firebase
+  /// Move a debt to the paidPeople collection in Firebase without creating duplicates
   Future<void> archivePaidPerson(Map<String, dynamic> debt) async {
     try {
       await deleteDebt(debt);
-      final id =
-          (debt['id'] != null && debt['id'].toString().isNotEmpty)
-              ? debt['id'].toString()
-              : paidPeopleRef.push().key!;
-      debt['id'] = id;
+      final name = debt['name']?.toString().toLowerCase().trim() ?? '';
+      String targetId = '';
+
+      final snapshot = await paidPeopleRef.get();
+      if (snapshot.value is Map) {
+        (snapshot.value as Map).forEach((k, v) {
+          if (v is Map &&
+              v['name']?.toString().toLowerCase().trim() == name) {
+            targetId = k.toString();
+          }
+        });
+      }
+
+      if (targetId.isEmpty) {
+        targetId = (debt['id'] != null && debt['id'].toString().isNotEmpty)
+            ? debt['id'].toString()
+            : paidPeopleRef.push().key!;
+      }
+
+      debt['id'] = targetId;
       debt['status'] = 'Paid';
-      await paidPeopleRef.child(id).set(Map<String, dynamic>.from(debt));
+      await paidPeopleRef.child(targetId).set(Map<String, dynamic>.from(debt));
     } catch (e) {
       debugPrint('RealtimeDatabase archivePaidPerson error: $e');
     }
@@ -185,13 +304,17 @@ class RealtimeDatabaseService {
   Future<void> deletePaidPerson(Map<String, dynamic> person) async {
     try {
       final id = person['id']?.toString();
+      final name = person['name']?.toString().toLowerCase().trim();
+
       if (id != null && id.isNotEmpty) {
         await paidPeopleRef.child(id).remove();
-      } else {
+      }
+      if (name != null && name.isNotEmpty) {
         final snapshot = await paidPeopleRef.get();
         if (snapshot.value is Map) {
           (snapshot.value as Map).forEach((k, v) {
-            if (v is Map && v['name'] == person['name']) {
+            if (v is Map &&
+                v['name']?.toString().toLowerCase().trim() == name) {
               paidPeopleRef.child(k.toString()).remove();
             }
           });

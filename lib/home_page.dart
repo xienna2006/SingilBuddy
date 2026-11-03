@@ -60,25 +60,6 @@ class _HomePageState extends State<HomePage> {
     ]
   },
   {
-    "name": "Mark Reyes",
-    "description": "Emergency medical bills assistance",
-    "total": 3500.00,
-    "paid": 3500.00,
-    "dueDate": "October 15, 2026",
-    "promisedDate": null,
-    "status": "Paid",
-    "payments": [
-      {
-        "amount": 2000.00,
-        "date": "October 1, 2026"
-      },
-      {
-        "amount": 1500.00,
-        "date": "October 14, 2026"
-      }
-    ]
-  },
-  {
     "name": "Ana Gonzales",
     "description": "Laptop repair contribution",
     "total": 2200.00,
@@ -134,29 +115,6 @@ class _HomePageState extends State<HomePage> {
     ]
   },
   {
-    "name": "Liza Aquino",
-    "description": "Small business inventory capital",
-    "total": 8000.00,
-    "paid": 8000.00,
-    "dueDate": "September 15, 2026",
-    "promisedDate": null,
-    "status": "Paid",
-    "payments": [
-      {
-        "amount": 3000.00,
-        "date": "August 20, 2026"
-      },
-      {
-        "amount": 3000.00,
-        "date": "September 1, 2026"
-      },
-      {
-        "amount": 2000.00,
-        "date": "September 14, 2026"
-      }
-    ]
-  },
-  {
     "name": "Dexter Tan",
     "description": "Electricity and water bills share",
     "total": 950.00,
@@ -186,7 +144,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _syncPaidPeople();
+    _rtdb.cleanupDuplicates();
     _initFirebaseSync();
   }
 
@@ -195,35 +153,19 @@ class _HomePageState extends State<HomePage> {
 
     _debtsSubscription = _rtdb.debtsStream.listen((liveDebts) {
       if (!mounted) return;
-      if (liveDebts.isNotEmpty) {
-        setState(() {
-          debts.clear();
-          debts.addAll(liveDebts);
-        });
-      }
+      setState(() {
+        debts.clear();
+        debts.addAll(liveDebts);
+      });
     });
 
     _paidSubscription = _rtdb.paidPeopleStream.listen((livePaid) {
       if (!mounted) return;
-      if (livePaid.isNotEmpty) {
-        setState(() {
-          paidPeople.clear();
-          paidPeople.addAll(livePaid);
-        });
-      }
+      setState(() {
+        paidPeople.clear();
+        paidPeople.addAll(livePaid);
+      });
     });
-  }
-
-  void _syncPaidPeople() {
-    final fullyPaid = debts.where((debt) {
-      final total = (debt['total'] as num).toDouble();
-      final paid = (debt['paid'] as num).toDouble();
-      return paid >= total || debt['status'] == 'Paid';
-    }).toList();
-
-    for (final debt in fullyPaid) {
-      _archivePaidPerson(debt);
-    }
   }
 
   final TextEditingController _debtSearchController = TextEditingController();
@@ -236,7 +178,6 @@ class _HomePageState extends State<HomePage> {
     _debtSearchController.dispose();
     super.dispose();
   }
-
 
   final List<Map<String, dynamic>> paidPeople = [
     {
@@ -255,6 +196,48 @@ class _HomePageState extends State<HomePage> {
         {
           'amount': 1000.00,
           'date': 'September 15, 2026',
+        },
+      ],
+    },
+    {
+      'name': 'Mark Reyes',
+      'description': 'Emergency medical bills assistance',
+      'total': 3500.00,
+      'paid': 3500.00,
+      'dueDate': 'October 15, 2026',
+      'promisedDate': null,
+      'status': 'Paid',
+      'payments': [
+        {
+          'amount': 2000.00,
+          'date': 'October 1, 2026',
+        },
+        {
+          'amount': 1500.00,
+          'date': 'October 14, 2026',
+        },
+      ],
+    },
+    {
+      'name': 'Liza Aquino',
+      'description': 'Small business inventory capital',
+      'total': 8000.00,
+      'paid': 8000.00,
+      'dueDate': 'September 15, 2026',
+      'promisedDate': null,
+      'status': 'Paid',
+      'payments': [
+        {
+          'amount': 3000.00,
+          'date': 'August 20, 2026',
+        },
+        {
+          'amount': 3000.00,
+          'date': 'September 1, 2026',
+        },
+        {
+          'amount': 2000.00,
+          'date': 'September 14, 2026',
         },
       ],
     },
