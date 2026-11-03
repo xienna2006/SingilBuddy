@@ -38,9 +38,14 @@ class DebtRecord {
       'name': name,
       'totalDebt': totalDebt,
       'paidAmount': paidAmount,
+<<<<<<< HEAD
       'promisedDate': promisedDate != null
           ? Timestamp.fromDate(promisedDate!)
           : null,
+=======
+      'promisedDate':
+          promisedDate != null ? Timestamp.fromDate(promisedDate!) : null,
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
     };
   }
 }
@@ -50,7 +55,15 @@ class PaymentRecord {
   final double amount;
   final DateTime date;
 
+<<<<<<< HEAD
   PaymentRecord({required this.id, required this.amount, required this.date});
+=======
+  PaymentRecord({
+    required this.id,
+    required this.amount,
+    required this.date,
+  });
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
   factory PaymentRecord.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> document,
@@ -67,7 +80,14 @@ class PaymentRecord {
   }
 
   Map<String, dynamic> toMap() {
+<<<<<<< HEAD
     return {'amount': amount, 'date': Timestamp.fromDate(date)};
+=======
+    return {
+      'amount': amount,
+      'date': Timestamp.fromDate(date),
+    };
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
   }
 }
 
@@ -133,9 +153,17 @@ class SingilBuddyService {
 
       final data = debtSnapshot.data() ?? {};
 
+<<<<<<< HEAD
       final currentPaid = (data['paidAmount'] ?? 0).toDouble();
 
       final totalDebt = (data['totalDebt'] ?? 0).toDouble();
+=======
+      final currentPaid =
+          (data['paidAmount'] ?? 0).toDouble();
+
+      final totalDebt =
+          (data['totalDebt'] ?? 0).toDouble();
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
       final newPaid = currentPaid + amount;
 
@@ -147,12 +175,24 @@ class SingilBuddyService {
         throw Exception('Payment cannot exceed the remaining debt.');
       }
 
+<<<<<<< HEAD
       transaction.update(debtReference, {'paidAmount': newPaid});
     });
 
     await paymentsFor(
       debtId,
     ).add({'amount': amount, 'date': FieldValue.serverTimestamp()});
+=======
+      transaction.update(debtReference, {
+        'paidAmount': newPaid,
+      });
+    });
+
+    await paymentsFor(debtId).add({
+      'amount': amount,
+      'date': FieldValue.serverTimestamp(),
+    });
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
   }
 
   Stream<List<PaymentRecord>> getPaymentHistory(String debtId) {
@@ -175,4 +215,8 @@ class SingilBuddyService {
 
     await debts.doc(debtId).delete();
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8

@@ -58,6 +58,7 @@ class ApiService {
   static const String apiUrl =
       'https://6ab24f065b9b60f39d3487c5.mockapi.io/debts';
 
+<<<<<<< HEAD
   // 1. GET Request
   Future<List<Debt>> fetchDebts() async {
     final response = await http.get(Uri.parse(apiUrl));
@@ -118,3 +119,17 @@ class ApiService {
     }
   }
 }
+=======
+  Future<List<dynamic>> getDebts() async {
+    final response = await http.get(Uri.parse(apiUrl));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(
+        'Failed to load debts: ${response.statusCode}',
+      );
+    }
+  }
+}
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8

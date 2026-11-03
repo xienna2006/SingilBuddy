@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+<<<<<<< HEAD
 import 'Services/service_catalog_page.dart';
+=======
+import 'service_catalog_page.dart';
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -230,6 +234,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Map<String, dynamic>> serviceCatalog = [
     {
+<<<<<<< HEAD
       "id": "1",
       "serviceName": "Emergency Cash Loan",
       "category": "Loans",
@@ -318,6 +323,70 @@ class _HomePageState extends State<HomePage> {
       "description": "Monthly Wi-Fi broadband, Netflix, or streaming subscription",
       "status": "Available",
       "icon": Icons.wifi_rounded,
+=======
+      'id': '1',
+      'title': 'Emergency Cash Loan',
+      'category': 'Loans',
+      'description': 'Short-term urgent cash assistance',
+      'defaultAmount': 1000.00,
+      'icon': Icons.attach_money_rounded,
+    },
+    {
+      'id': '2',
+      'title': 'Food / Meal Share',
+      'category': 'Shared Bills',
+      'description': 'Shared dining, takeout, or food delivery split',
+      'defaultAmount': 250.00,
+      'icon': Icons.restaurant_rounded,
+    },
+    {
+      'id': '3',
+      'title': 'Rent & Housing Share',
+      'category': 'Shared Bills',
+      'description': 'Monthly house rent, apartment, or dorm split',
+      'defaultAmount': 3500.00,
+      'icon': Icons.home_work_rounded,
+    },
+    {
+      'id': '4',
+      'title': 'Utility Bills (Electric & Water)',
+      'category': 'Utilities',
+      'description': 'Electricity, water, or internet connection bill',
+      'defaultAmount': 750.00,
+      'icon': Icons.bolt_rounded,
+    },
+    {
+      'id': '5',
+      'title': 'Groceries & Supplies',
+      'category': 'Shared Bills',
+      'description': 'Supermarket, market or household goods split',
+      'defaultAmount': 500.00,
+      'icon': Icons.shopping_basket_rounded,
+    },
+    {
+      'id': '6',
+      'title': 'School & Tuition Expenses',
+      'category': 'Education',
+      'description': 'Books, tuition, school projects or exam fees',
+      'defaultAmount': 1500.00,
+      'icon': Icons.school_rounded,
+    },
+    {
+      'id': '7',
+      'title': 'Transportation / Gas Fare',
+      'category': 'Travel',
+      'description': 'Commute fare, taxi, Grab, or gasoline contribution',
+      'defaultAmount': 200.00,
+      'icon': Icons.directions_car_rounded,
+    },
+    {
+      'id': '8',
+      'title': 'Freelance / Labor Service',
+      'category': 'Services',
+      'description': 'Professional design, repair, encoding or consultation',
+      'defaultAmount': 2000.00,
+      'icon': Icons.work_outline_rounded,
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
     },
   ];
 
@@ -350,9 +419,14 @@ class _HomePageState extends State<HomePage> {
   void _billDebtorFromCatalog(
     String debtorName,
     double amount,
+<<<<<<< HEAD
     String description, [
     String? dueDate,
   ]) {
+=======
+    String description,
+  ) {
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
     final name = debtorName.trim();
     final existingIndex = debts.indexWhere(
       (debt) => debt['name'].toString().toLowerCase() == name.toLowerCase(),
@@ -365,16 +439,23 @@ class _HomePageState extends State<HomePage> {
         existing['description'] =
             description.isEmpty ? existing['description'] : description;
         existing['status'] = 'Active';
+<<<<<<< HEAD
         if (dueDate != null && dueDate.isNotEmpty) {
           existing['dueDate'] = dueDate;
         }
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
       } else {
         debts.add({
           'name': name,
           'description': description.isEmpty ? 'Personal debt' : description,
           'total': amount,
           'paid': 0.0,
+<<<<<<< HEAD
           'dueDate': (dueDate != null && dueDate.isNotEmpty) ? dueDate : 'Not set',
+=======
+          'dueDate': 'Not set',
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
           'promisedDate': null,
           'status': 'Active',
           'payments': [],
@@ -1649,6 +1730,7 @@ class _HomePageState extends State<HomePage> {
 
             const SizedBox(height: 12),
 
+<<<<<<< HEAD
             InkWell(
               onTap: completed ? null : () => _setDueDate(debt),
               borderRadius: BorderRadius.circular(8),
@@ -1700,6 +1782,44 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
+=======
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today_rounded,
+                  size: 14,
+                  color: Colors.black45,
+                ),
+
+                const SizedBox(width: 5),
+
+                Expanded(
+                  child: Text(
+                    'Due ${debt['dueDate']}',
+
+                    style:
+                        const TextStyle(
+                      fontSize: 11,
+                      color:
+                          Colors.black54,
+                    ),
+                  ),
+                ),
+
+                if (!completed)
+                  Text(
+                    '₱${remaining.toStringAsFixed(2)} left',
+
+                    style:
+                        const TextStyle(
+                      color: primaryPink,
+                      fontSize: 12,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+              ],
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
             ),
 
             if (debt['promisedDate'] != null && !completed) ...[
@@ -2071,6 +2191,7 @@ class _HomePageState extends State<HomePage> {
                     '₱${remaining.toStringAsFixed(2)}',
                   ),
 
+<<<<<<< HEAD
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -2109,6 +2230,11 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                     ],
+=======
+                  _detailRow(
+                    'Due Date',
+                    debt['dueDate'],
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                   ),
 
                   if (debt['promisedDate'] != null && !completed)
@@ -2478,6 +2604,7 @@ class _HomePageState extends State<HomePage> {
   }
 
 
+<<<<<<< HEAD
   Future<void> _setDueDate(Map<String, dynamic> debt) async {
     final DateTime now = DateTime.now();
     DateTime initialDate = now;
@@ -2615,6 +2742,8 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
   Future<void> _setPromiseDate(
     Map<String, dynamic> debt,
   ) async {
@@ -2951,15 +3080,19 @@ class _HomePageState extends State<HomePage> {
   void _showAddDebtForDebtorDialog(Map<String, dynamic> debt) {
     final amountController = TextEditingController();
     final descriptionController = TextEditingController();
+<<<<<<< HEAD
     DateTime? selectedDueDate;
     final bool hasInitialDate = debt['dueDate'] != null &&
         debt['dueDate'] != 'Not set' &&
         debt['dueDate'].toString().trim().isNotEmpty;
     bool clearDueDate = false;
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
     showDialog(
       context: context,
       builder: (dialogContext) {
+<<<<<<< HEAD
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final String currentDueDisplay = clearDueDate
@@ -3219,6 +3352,137 @@ class _HomePageState extends State<HomePage> {
               ],
             );
           },
+=======
+        return AlertDialog(
+          title: Text(
+            'Add Debt for ${debt['name']}',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: lightPink,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderPink),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.person,
+                        color: primaryPink,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              debt['name']?.toString() ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Text(
+                              'Current remaining: ₱${((debt['total'] as num).toDouble() - (debt['paid'] as num).toDouble()).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: amountController,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Additional Debt Amount',
+                    prefixText: '₱ ',
+                    prefixIcon: const Icon(Icons.payments),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(
+                    labelText: 'Reason / Note (optional)',
+                    hintText: 'e.g. Groceries, Lunch, Emergency loan',
+                    prefixIcon: const Icon(Icons.notes),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final amount = double.tryParse(amountController.text.trim());
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid amount greater than 0.'),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+
+                final desc = descriptionController.text.trim();
+                setState(() {
+                  debt['total'] = (debt['total'] as num).toDouble() + amount;
+                  if (desc.isNotEmpty) {
+                    debt['description'] = desc;
+                  }
+                  debt['status'] = 'Active';
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Added ₱${amount.toStringAsFixed(2)} debt to ${debt['name']}.',
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryPink,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Add Debt'),
+            ),
+          ],
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
         );
       },
     );
@@ -3238,14 +3502,21 @@ class _HomePageState extends State<HomePage> {
 
     final descriptionController =
         TextEditingController(text: initialDescription ?? '');
+<<<<<<< HEAD
     DateTime? selectedDueDate;
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
     showDialog(
       context: context,
       builder: (dialogContext) {
+<<<<<<< HEAD
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+=======
+        return AlertDialog(
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
           title: const Text(
             'Add New Debt',
             style: TextStyle(
@@ -3290,6 +3561,7 @@ class _HomePageState extends State<HomePage> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: serviceCatalog.map((item) {
+<<<<<<< HEAD
                         final String itemName = (item['serviceName'] ?? item['title'] ?? '').toString();
                         final num itemAmount = (item['defaultAmount'] ?? 0) as num;
                         final String cat = item['category']?.toString() ?? '';
@@ -3308,16 +3580,26 @@ class _HomePageState extends State<HomePage> {
                                                     ? Icons.work_outline_rounded
                                                     : Icons.receipt_long_rounded);
 
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                         return Padding(
                           padding: const EdgeInsets.only(right: 6.0),
                           child: ActionChip(
                             avatar: Icon(
+<<<<<<< HEAD
                               itemIcon,
+=======
+                              item['icon'] as IconData? ?? Icons.design_services_rounded,
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                               size: 14,
                               color: primaryPink,
                             ),
                             label: Text(
+<<<<<<< HEAD
                               '$itemName (₱${itemAmount.toStringAsFixed(0)})',
+=======
+                              '${item['title']} (₱${(item['defaultAmount'] as num).toStringAsFixed(0)})',
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                               style: const TextStyle(fontSize: 11),
                             ),
                             backgroundColor: lightPink,
@@ -3327,9 +3609,15 @@ class _HomePageState extends State<HomePage> {
                             ),
                             onPressed: () {
                               amountController.text =
+<<<<<<< HEAD
                                   itemAmount.toDouble().toStringAsFixed(2);
                               descriptionController.text =
                                   itemName;
+=======
+                                  (item['defaultAmount'] as num).toStringAsFixed(2);
+                              descriptionController.text =
+                                  item['title'] as String;
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                             },
                           ),
                         );
@@ -3375,6 +3663,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
+<<<<<<< HEAD
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -3485,6 +3774,8 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
               ],
             ),
           ),
@@ -3533,6 +3824,10 @@ class _HomePageState extends State<HomePage> {
                   return;
                 }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                 final existingIndex =
                     debts.indexWhere(
                   (debt) =>
@@ -3542,10 +3837,13 @@ class _HomePageState extends State<HomePage> {
                       name.toLowerCase(),
                 );
 
+<<<<<<< HEAD
                 final dueDateStr = selectedDueDate != null
                     ? _formatDate(selectedDueDate!)
                     : 'Not set';
 
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                 setState(() {
                   if (existingIndex >=
                       0) {
@@ -3569,9 +3867,13 @@ class _HomePageState extends State<HomePage> {
                     existing['status'] =
                         'Active';
 
+<<<<<<< HEAD
                     if (selectedDueDate != null) {
                       existing['dueDate'] = dueDateStr;
                     }
+=======
+
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
                   } else {
 
                     debts.add({
@@ -3586,7 +3888,12 @@ class _HomePageState extends State<HomePage> {
 
                       'paid': 0.0,
 
+<<<<<<< HEAD
                       'dueDate': dueDateStr,
+=======
+                      'dueDate':
+                          'Not set',
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
                       'promisedDate':
                           null,
@@ -3638,8 +3945,11 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         );
+<<<<<<< HEAD
           },
         );
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
       },
     );
   }
@@ -4207,9 +4517,14 @@ class _HomePageState extends State<HomePage> {
   void _addNewDebtToPaidPerson(
     Map<String, dynamic> person,
     double amount,
+<<<<<<< HEAD
     String description, [
     String? dueDate,
   ]) {
+=======
+    String description,
+  ) {
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
     final name = person['name'].toString();
     setState(() {
       paidPeople.remove(person);
@@ -4226,9 +4541,12 @@ class _HomePageState extends State<HomePage> {
             description.isEmpty ? existing['description'] : description;
         existing['status'] = 'Active';
         existing['promisedDate'] = null;
+<<<<<<< HEAD
         if (dueDate != null && dueDate.isNotEmpty) {
           existing['dueDate'] = dueDate;
         }
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
       } else {
         debts.add({
           'name': name,
@@ -4236,7 +4554,11 @@ class _HomePageState extends State<HomePage> {
               description.isEmpty ? 'Personal debt' : description,
           'total': amount,
           'paid': 0.0,
+<<<<<<< HEAD
           'dueDate': (dueDate != null && dueDate.isNotEmpty) ? dueDate : 'Not set',
+=======
+          'dueDate': 'Not set',
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
           'promisedDate': null,
           'status': 'Active',
           'payments': [],
@@ -4280,9 +4602,14 @@ class PaidPeoplePage
   final void Function(
     Map<String, dynamic> person,
     double amount,
+<<<<<<< HEAD
     String description, [
     String? dueDate,
   ]) onAddNewDebt;
+=======
+    String description,
+  ) onAddNewDebt;
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
   final Function(
     Map<String, dynamic>,
@@ -4323,6 +4650,7 @@ class _PaidPeoplePageState
   final TextEditingController _paidSearchController =
       TextEditingController();
 
+<<<<<<< HEAD
   String _formatDate(DateTime date) {
     const months = [
       'January',
@@ -4341,6 +4669,8 @@ class _PaidPeoplePageState
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
   @override
   void dispose() {
     _paidSearchController.dispose();
@@ -4350,11 +4680,15 @@ class _PaidPeoplePageState
   void _showAddDebtDialog(Map<String, dynamic> person) {
     final amountController = TextEditingController();
     final descriptionController = TextEditingController();
+<<<<<<< HEAD
     DateTime? selectedDueDate;
+=======
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
 
     showDialog(
       context: context,
       builder: (dialogContext) {
+<<<<<<< HEAD
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -4581,6 +4915,115 @@ class _PaidPeoplePageState
               ],
             );
           },
+=======
+        return AlertDialog(
+          title: Text(
+            'Add Debt for ${person['name']}',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: lightPink,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderPink),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.person,
+                        color: primaryPink,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          person['name']?.toString() ?? '',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: amountController,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Debt Amount',
+                    prefixText: '₱ ',
+                    prefixIcon: const Icon(Icons.payments),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(
+                    labelText: 'Description (optional)',
+                    prefixIcon: const Icon(Icons.notes),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final amount = double.tryParse(amountController.text.trim());
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid amount greater than 0.'),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+
+                widget.onAddNewDebt(
+                  person,
+                  amount,
+                  descriptionController.text.trim(),
+                );
+
+                setState(() {});
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryPink,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Add Debt'),
+            ),
+          ],
+>>>>>>> 05a842ebd4e51235cd5b0866c7ceb11712f7b7d8
         );
       },
     );
