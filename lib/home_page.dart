@@ -264,65 +264,81 @@ class _HomePageState extends State<HomePage> {
     {
       'id': '1',
       'title': 'Emergency Cash Loan',
+      'serviceName': 'Emergency Cash Loan',
       'category': 'Loans',
       'description': 'Short-term urgent cash assistance',
       'defaultAmount': 1000.00,
+      'status': 'Available',
       'icon': Icons.attach_money_rounded,
     },
     {
       'id': '2',
       'title': 'Food / Meal Share',
+      'serviceName': 'Food / Meal Share',
       'category': 'Shared Bills',
-      'description': 'Shared dining, takeout, or food delivery split',
       'defaultAmount': 250.00,
+      'description': 'Shared dining, takeout, or food delivery split',
+      'status': 'Available',
       'icon': Icons.restaurant_rounded,
     },
     {
       'id': '3',
       'title': 'Rent & Housing Share',
+      'serviceName': 'Rent & Housing Share',
       'category': 'Shared Bills',
-      'description': 'Monthly house rent, apartment, or dorm split',
       'defaultAmount': 3500.00,
+      'description': 'Monthly house rent, apartment, or dorm split',
+      'status': 'Available',
       'icon': Icons.home_work_rounded,
     },
     {
       'id': '4',
       'title': 'Utility Bills (Electric & Water)',
+      'serviceName': 'Utility Bills (Electric & Water)',
       'category': 'Utilities',
-      'description': 'Electricity, water, or internet connection bill',
       'defaultAmount': 750.00,
+      'description': 'Electricity, water, or internet connection bill',
+      'status': 'Available',
       'icon': Icons.bolt_rounded,
     },
     {
       'id': '5',
       'title': 'Groceries & Supplies',
+      'serviceName': 'Groceries & Supplies',
       'category': 'Shared Bills',
-      'description': 'Supermarket, market or household goods split',
       'defaultAmount': 500.00,
+      'description': 'Supermarket, market or household goods split',
+      'status': 'Available',
       'icon': Icons.shopping_basket_rounded,
     },
     {
       'id': '6',
       'title': 'School & Tuition Expenses',
+      'serviceName': 'School & Tuition Expenses',
       'category': 'Education',
-      'description': 'Books, tuition, school projects or exam fees',
       'defaultAmount': 1500.00,
+      'description': 'Books, tuition, school projects or exam fees',
+      'status': 'Available',
       'icon': Icons.school_rounded,
     },
     {
       'id': '7',
       'title': 'Transportation / Gas Fare',
+      'serviceName': 'Transportation / Gas Fare',
       'category': 'Travel',
-      'description': 'Commute fare, taxi, Grab, or gasoline contribution',
       'defaultAmount': 200.00,
+      'description': 'Commute fare, taxi, Grab, or gasoline contribution',
+      'status': 'Available',
       'icon': Icons.directions_car_rounded,
     },
     {
       'id': '8',
       'title': 'Freelance / Labor Service',
+      'serviceName': 'Freelance / Labor Service',
       'category': 'Services',
       'description': 'Professional design, repair, encoding or consultation',
       'defaultAmount': 2000.00,
+      'status': 'Available',
       'icon': Icons.work_outline_rounded,
     },
   ];
@@ -356,8 +372,9 @@ class _HomePageState extends State<HomePage> {
   void _billDebtorFromCatalog(
     String debtorName,
     double amount,
-    String description,
-  ) {
+    String description, [
+    String? dueDate,
+  ]) {
     final name = debtorName.trim();
     final existingIndex = debts.indexWhere(
       (debt) => debt['name'].toString().toLowerCase() == name.toLowerCase(),
@@ -370,6 +387,9 @@ class _HomePageState extends State<HomePage> {
       existing['total'] = (existing['total'] as num).toDouble() + amount;
       existing['description'] =
           description.isEmpty ? existing['description'] : description;
+      if (dueDate != null) {
+        existing['dueDate'] = dueDate;
+      }
       existing['status'] = 'Active';
       targetDebt = existing;
     } else {
@@ -378,7 +398,7 @@ class _HomePageState extends State<HomePage> {
         'description': description.isEmpty ? 'Personal debt' : description,
         'total': amount,
         'paid': 0.0,
-        'dueDate': 'Not set',
+        'dueDate': dueDate ?? 'Not set',
         'promisedDate': null,
         'status': 'Active',
         'payments': [],
@@ -3106,7 +3126,7 @@ class _HomePageState extends State<HomePage> {
                   return;
                 }
 
-                Navigator.pop(dialogContext);
+                    Navigator.pop(dialogContext);
 
                 final desc = descriptionController.text.trim();
                 setState(() {
@@ -4102,9 +4122,11 @@ class _HomePageState extends State<HomePage> {
   void _addNewDebtToPaidPerson(
     Map<String, dynamic> person,
     double amount,
-    String description,
-  ) {
+    String description, [
+    String? dueDate,
+  ]) {
     final name = person['name'].toString();
+    final dueDateString = dueDate ?? 'Not set';
     late final Map<String, dynamic> targetDebt;
 
     final existingIndex = debts.indexWhere(
@@ -4119,6 +4141,9 @@ class _HomePageState extends State<HomePage> {
           description.isEmpty ? existing['description'] : description;
       existing['status'] = 'Active';
       existing['promisedDate'] = null;
+      if (dueDate != null) {
+        existing['dueDate'] = dueDateString;
+      }
       targetDebt = existing;
     } else {
       targetDebt = {
@@ -4127,7 +4152,7 @@ class _HomePageState extends State<HomePage> {
             description.isEmpty ? 'Personal debt' : description,
         'total': amount,
         'paid': 0.0,
-        'dueDate': 'Not set',
+        'dueDate': dueDateString,
         'promisedDate': null,
         'status': 'Active',
         'payments': [],
@@ -4178,8 +4203,9 @@ class PaidPeoplePage
   final void Function(
     Map<String, dynamic> person,
     double amount,
-    String description,
-  ) onAddNewDebt;
+    String description, [
+    String? dueDate,
+  ]) onAddNewDebt;
 
   final Function(
     Map<String, dynamic>,
@@ -4226,9 +4252,31 @@ class _PaidPeoplePageState
     super.dispose();
   }
 
+  String _formatDate(DateTime date) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+
+    return '${months[date.month - 1]} '
+        '${date.day}, '
+        '${date.year}';
+  }
+
   void _showAddDebtDialog(Map<String, dynamic> person) {
     final amountController = TextEditingController();
     final descriptionController = TextEditingController();
+    DateTime? selectedDueDate;
 
     showDialog(
       context: context,
@@ -4238,71 +4286,200 @@ class _PaidPeoplePageState
             'Add Debt for ${person['name']}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: lightPink,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: borderPink),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.person,
-                        color: primaryPink,
-                        size: 20,
+          content: StatefulBuilder(
+            builder: (BuildContext dialogContext, StateSetter setDialogState) {
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          person['name']?.toString() ?? '',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                      decoration: BoxDecoration(
+                        color: lightPink,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: borderPink),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.person,
+                            color: primaryPink,
+                            size: 20,
                           ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  person['name']?.toString() ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: amountController,
+                      autofocus: true,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Debt Amount',
+                        prefixText: '₱ ',
+                        prefixIcon: const Icon(Icons.payments),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: amountController,
-                  autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Debt Amount',
-                    prefixText: '₱ ',
-                    prefixIcon: const Icon(Icons.payments),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(
-                    labelText: 'Description (optional)',
-                    prefixIcon: const Icon(Icons.notes),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: InputDecoration(
+                        labelText: 'Description (optional)',
+                        prefixIcon: const Icon(Icons.notes),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () async {
+                        final now = DateTime.now();
+                        final today = DateTime(now.year, now.month, now.day);
+                        final initial = (selectedDueDate != null &&
+                                !selectedDueDate!.isBefore(today))
+                            ? selectedDueDate!
+                            : today.add(const Duration(days: 7));
+
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: initial,
+                          firstDate: today,
+                          lastDate: DateTime(now.year + 10, 12, 31),
+                          helpText: 'Select Due Date (Optional)',
+                          cancelText: 'Cancel',
+                          confirmText: 'Set Due Date',
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: primaryPink,
+                                  onPrimary: Colors.white,
+                                  surface: Colors.white,
+                                  onSurface: Colors.black87,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedDueDate = picked;
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selectedDueDate != null
+                              ? lightPink
+                              : Colors.grey.shade50,
+                          border: Border.all(
+                            color: selectedDueDate != null
+                                ? primaryPink
+                                : Colors.grey.shade400,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              color: selectedDueDate != null
+                                  ? primaryPink
+                                  : Colors.grey.shade600,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedDueDate == null
+                                        ? 'Set Due Date (Optional)'
+                                        : 'Due: ${_formatDate(selectedDueDate!)}',
+                                    style: TextStyle(
+                                      color: selectedDueDate != null
+                                          ? primaryPink
+                                          : Colors.black87,
+                                      fontWeight: selectedDueDate != null
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    selectedDueDate == null
+                                        ? 'Tap to pick a payment deadline'
+                                        : 'Tap to change deadline',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (selectedDueDate != null)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                ),
+                                color: primaryPink,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Clear due date',
+                                onPressed: () {
+                                  setDialogState(() {
+                                    selectedDueDate = null;
+                                  });
+                                },
+                              )
+                            else
+                              const Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.grey,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
           actions: [
             TextButton(
@@ -4329,6 +4506,9 @@ class _PaidPeoplePageState
                   person,
                   amount,
                   descriptionController.text.trim(),
+                  selectedDueDate != null
+                      ? _formatDate(selectedDueDate!)
+                      : null,
                 );
 
                 setState(() {});

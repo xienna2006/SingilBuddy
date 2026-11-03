@@ -38,8 +38,9 @@ class DebtRecord {
       'name': name,
       'totalDebt': totalDebt,
       'paidAmount': paidAmount,
-      'promisedDate':
-          promisedDate != null ? Timestamp.fromDate(promisedDate!) : null,
+      'promisedDate': promisedDate != null
+          ? Timestamp.fromDate(promisedDate!)
+          : null,
     };
   }
 }
@@ -49,11 +50,7 @@ class PaymentRecord {
   final double amount;
   final DateTime date;
 
-  PaymentRecord({
-    required this.id,
-    required this.amount,
-    required this.date,
-  });
+  PaymentRecord({required this.id, required this.amount, required this.date});
 
   factory PaymentRecord.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> document,
@@ -70,10 +67,7 @@ class PaymentRecord {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'amount': amount,
-      'date': Timestamp.fromDate(date),
-    };
+    return {'amount': amount, 'date': Timestamp.fromDate(date)};
   }
 }
 
@@ -139,11 +133,9 @@ class SingilBuddyService {
 
       final data = debtSnapshot.data() ?? {};
 
-      final currentPaid =
-          (data['paidAmount'] ?? 0).toDouble();
+      final currentPaid = (data['paidAmount'] ?? 0).toDouble();
 
-      final totalDebt =
-          (data['totalDebt'] ?? 0).toDouble();
+      final totalDebt = (data['totalDebt'] ?? 0).toDouble();
 
       final newPaid = currentPaid + amount;
 
@@ -155,15 +147,12 @@ class SingilBuddyService {
         throw Exception('Payment cannot exceed the remaining debt.');
       }
 
-      transaction.update(debtReference, {
-        'paidAmount': newPaid,
-      });
+      transaction.update(debtReference, {'paidAmount': newPaid});
     });
 
-    await paymentsFor(debtId).add({
-      'amount': amount,
-      'date': FieldValue.serverTimestamp(),
-    });
+    await paymentsFor(
+      debtId,
+    ).add({'amount': amount, 'date': FieldValue.serverTimestamp()});
   }
 
   Stream<List<PaymentRecord>> getPaymentHistory(String debtId) {
