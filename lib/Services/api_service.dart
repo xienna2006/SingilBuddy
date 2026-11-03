@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// Model class representing a Debt item in SingilBuddy,
-/// matching MockAPI and app functions.
 class Debt {
   final String? id;
   final String debtorName;
@@ -60,7 +58,7 @@ class ApiService {
   static const String apiUrl =
       'https://6ab24f065b9b60f39d3487c5.mockapi.io/debts';
 
-  // 1. GET Request: Fetch debts from the API
+  // 1. GET Request
   Future<List<Debt>> fetchDebts() async {
     final response = await http.get(Uri.parse(apiUrl));
 
@@ -74,13 +72,12 @@ class ApiService {
     }
   }
 
-  // Alias for backward compatibility
   Future<List<Debt>> getDebts() => fetchDebts();
 
-  // 2. POST Request: Create a new debt
+  // 2. POST Request
   Future<Debt> createDebt(Debt newDebt) async {
     final Map<String, dynamic> jsonData = newDebt.toJson();
-    jsonData.remove('id'); // Remove local ID before posting
+    jsonData.remove('id');
 
     final response = await http.post(
       Uri.parse(apiUrl),
@@ -95,10 +92,10 @@ class ApiService {
     }
   }
 
-  // 3. PUT Request: Update an existing debt
+  // 3. PUT Request
   Future<Debt> updateDebt(Debt debt) async {
     final response = await http.put(
-      Uri.parse('$apiUrl/${debt.id}'), // Targeted ID endpoint
+      Uri.parse('$apiUrl/${debt.id}'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(debt.toJson()),
     );
@@ -110,11 +107,9 @@ class ApiService {
     }
   }
 
-  // 4. DELETE Request: Remove a debt by ID
+  // 4. DELETE Request
   Future<void> deleteDebt(dynamic id) async {
-    final response = await http.delete(
-      Uri.parse('$apiUrl/$id'), // Targeted ID endpoint
-    );
+    final response = await http.delete(Uri.parse('$apiUrl/$id'));
 
     if (response.statusCode == 200) {
       return;
