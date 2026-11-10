@@ -15,6 +15,8 @@ class _HomePageState extends State<HomePage> {
   final RealtimeDatabaseService _rtdb = RealtimeDatabaseService();
   StreamSubscription? _debtsSubscription;
   StreamSubscription? _paidSubscription;
+  StreamSubscription? _recentPaymentsSubscription;
+  final List<Map<String, dynamic>> recentPayments = [];
 
   static const Color primaryPink = Color(0xFFFF2D75);
   static const Color backgroundColor = Color(0xFFFFF5F7);
@@ -144,7 +146,12 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _rtdb.cleanupDuplicates();
+    _initApp();
+  }
+
+  Future<void> _initApp() async {
+    await _rtdb.cleanupDuplicates();
+    if (!mounted) return;
     _initFirebaseSync();
   }
 
@@ -166,6 +173,15 @@ class _HomePageState extends State<HomePage> {
         paidPeople.addAll(livePaid);
       });
     });
+
+    _recentPaymentsSubscription =
+        _rtdb.recentPaymentsStream.listen((livePayments) {
+      if (!mounted) return;
+      setState(() {
+        recentPayments.clear();
+        recentPayments.addAll(livePayments);
+      });
+    });
   }
 
   final TextEditingController _debtSearchController = TextEditingController();
@@ -175,6 +191,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _debtsSubscription?.cancel();
     _paidSubscription?.cancel();
+    _recentPaymentsSubscription?.cancel();
     _debtSearchController.dispose();
     super.dispose();
   }
@@ -2804,6 +2821,14 @@ class _HomePageState extends State<HomePage> {
                   return;
                 }
 
+                final paymentData = {
+                  'debtId': debt['id']?.toString() ?? '',
+                  'name': debt['name']?.toString() ?? '',
+                  'amount': amount,
+                  'date': _currentDate(),
+                  'timestamp': DateTime.now().millisecondsSinceEpoch,
+                };
+
                 setState(() {
                   debt['paid'] =
                       paid + amount;
@@ -2813,6 +2838,7 @@ class _HomePageState extends State<HomePage> {
                     'amount': amount,
                     'date':
                         _currentDate(),
+                    'timestamp': DateTime.now().millisecondsSinceEpoch,
                   });
 
                   if (debt['paid'] >=
@@ -2831,6 +2857,9 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(
                   dialogContext,
                 );
+
+                // Save payment directly to recentPayments collection in Firebase RTDB
+                _rtdb.saveRecentPayment(paymentData);
 
                 if ((debt['paid'] as num)
                         .toDouble() >=
@@ -3645,33 +3674,47 @@ class _HomePageState extends State<HomePage> {
 
 
   Widget _recentPayments() {
-    final List<Map<String, dynamic>>
-        payments = [];
+    final List<Map<String, dynamic>> payments =
+        List<Map<String, dynamic>>.from(recentPayments);
 
-    for (final debt in debts) {
-      for (final payment
-          in debt['payments']) {
-        payments.add({
-          'name': debt['name'],
-          'amount':
-              (payment['amount'] as num)
-                  .toDouble(),
-          'date': payment['date'],
-        });
-      }
-    }
+    if (payments.isEmpty) {
+      final Map<String, Map<String, dynamic>> uniqueFallback = {};
 
-    for (final person in paidPeople) {
-      for (final payment
-          in person['payments']) {
-        payments.add({
-          'name': person['name'],
-          'amount':
-              (payment['amount'] as num)
-                  .toDouble(),
-          'date': payment['date'],
-        });
+      void addPayment(dynamic person, dynamic payment) {
+        if (payment is Map) {
+          final name = (person['name'] ?? '').toString();
+          final amount = ((payment['amount'] as num?)?.toDouble() ?? 0.0);
+          final date = (payment['date'] ?? '').toString();
+          final key =
+              '${name.toLowerCase().trim()}|${amount.toStringAsFixed(2)}|${date.toLowerCase().trim()}';
+          if (key != '||0.00|' && !uniqueFallback.containsKey(key)) {
+            uniqueFallback[key] = {
+              'name': name,
+              'amount': amount,
+              'date': date,
+              'timestamp': payment['timestamp'],
+            };
+          }
+        }
       }
+
+      for (final debt in debts) {
+        if (debt['payments'] is List) {
+          for (final payment in debt['payments']) {
+            addPayment(debt, payment);
+          }
+        }
+      }
+
+      for (final person in paidPeople) {
+        if (person['payments'] is List) {
+          for (final payment in person['payments']) {
+            addPayment(person, payment);
+          }
+        }
+      }
+
+      payments.addAll(uniqueFallback.values);
     }
 
     if (payments.isEmpty) {
@@ -3705,13 +3748,15 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    payments.sort(
-      (a, b) => b['date']
-          .toString()
-          .compareTo(
-            a['date'].toString(),
-          ),
-    );
+    payments.sort((a, b) {
+      final int tA = (a['timestamp'] as num?)?.toInt() ?? 0;
+      final int tB = (b['timestamp'] as num?)?.toInt() ?? 0;
+      if (tA != 0 && tB != 0) {
+        return tB.compareTo(tA);
+      }
+      return (b['date']?.toString() ?? '')
+          .compareTo(a['date']?.toString() ?? '');
+    });
 
     return Container(
       decoration: BoxDecoration(
@@ -3745,7 +3790,7 @@ class _HomePageState extends State<HomePage> {
                   ),
 
                   title: Text(
-                    payment['name'],
+                    payment['name']?.toString() ?? '',
 
                     style:
                         const TextStyle(
@@ -3756,12 +3801,12 @@ class _HomePageState extends State<HomePage> {
 
                   subtitle:
                       Text(
-                    payment['date'],
+                    payment['date']?.toString() ?? '',
                   ),
 
                   trailing:
                       Text(
-                    '+₱${payment['amount'].toStringAsFixed(2)}',
+                    '+₱${((payment['amount'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(2)}',
 
                     style:
                         const TextStyle(
