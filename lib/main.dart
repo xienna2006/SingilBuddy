@@ -18,9 +18,10 @@ Future<void> main() async {
     }
   }
 
-  if (kDebugMode && FirebaseAuth.instance.currentUser != null) {
-    await FirebaseAuth.instance.signOut();
-  }
+  // User session persistence (commented out debug auto-signout so users stay logged in across app restarts)
+  // if (kDebugMode && FirebaseAuth.instance.currentUser != null) {
+  //   await FirebaseAuth.instance.signOut();
+  // }
 
   runApp(const MyApp());
 }

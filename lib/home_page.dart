@@ -1,8 +1,81 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'service_catalog_page.dart';
 import 'Services/rtdb_service.dart';
+
+DateTime? parseAnyDate(dynamic dateValue) {
+  if (dateValue == null) return null;
+  final str = dateValue.toString().trim();
+  if (str.isEmpty || str == 'Not set') return null;
+
+  final direct = DateTime.tryParse(str);
+  if (direct != null) return direct;
+
+  const months = {
+    'january': 1,
+    'february': 2,
+    'march': 3,
+    'april': 4,
+    'may': 5,
+    'june': 6,
+    'july': 7,
+    'august': 8,
+    'september': 9,
+    'october': 10,
+    'november': 11,
+    'december': 12,
+    'jan': 1,
+    'feb': 2,
+    'mar': 3,
+    'apr': 4,
+    'jun': 6,
+    'jul': 7,
+    'aug': 8,
+    'sep': 9,
+    'sept': 9,
+    'oct': 10,
+    'nov': 11,
+    'dec': 12,
+  };
+
+  try {
+    final clean = str.replaceAll(',', ' ');
+    final parts = clean
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.length >= 3) {
+      final m1 = parts[0].toLowerCase();
+      if (months.containsKey(m1)) {
+        final m = months[m1]!;
+        final d = int.tryParse(parts[1]);
+        final y = int.tryParse(parts[2]);
+        if (d != null && y != null) return DateTime(y, m, d);
+      }
+      final m2 = parts[1].toLowerCase();
+      if (months.containsKey(m2)) {
+        final m = months[m2]!;
+        final d = int.tryParse(parts[0]);
+        final y = int.tryParse(parts[2]);
+        if (d != null && y != null) return DateTime(y, m, d);
+      }
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+bool isDateOverdue(dynamic dateValue, {double remaining = 1.0}) {
+  if (remaining <= 0) return false;
+  final dt = parseAnyDate(dateValue);
+  if (dt == null) return false;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(dt.year, dt.month, dt.day);
+  return target.isBefore(today);
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -28,119 +101,99 @@ class _HomePageState extends State<HomePage> {
   static const Color orange = Color(0xFFFF8A3D);
   static const Color darkText = Color(0xFF242424);
 
-
-  final List<Map<String, dynamic>> debts = 
-  [
-  {
-    "name": "Juan Dela Cruz",
-    "description": "Borrowed for school expenses",
-    "total": 1500.00,
-    "paid": 500.00,
-    "dueDate": "September 28, 2026",
-    "promisedDate": null,
-    "status": "Active",
-    "payments": [
-      {
-        "amount": 500.00,
-        "date": "September 20, 2026"
-      }
-    ]
-  },
-  {
-    "name": "Maria Santos",
-    "description": "Shared food and transportation",
-    "total": 850.00,
-    "paid": 250.00,
-    "dueDate": "October 3, 2026",
-    "promisedDate": null,
-    "status": "Active",
-    "payments": [
-      {
-        "amount": 250.00,
-        "date": "September 19, 2026"
-      }
-    ]
-  },
-  {
-    "name": "Ana Gonzales",
-    "description": "Laptop repair contribution",
-    "total": 2200.00,
-    "paid": 0.00,
-    "dueDate": "October 10, 2026",
-    "promisedDate": "October 30, 2026",
-    "status": "Overdue",
-    "payments": []
-  },
-  {
-    "name": "Carlo Mendoza",
-    "description": "Grocery run share",
-    "total": 1200.00,
-    "paid": 600.00,
-    "dueDate": "November 5, 2026",
-    "promisedDate": null,
-    "status": "Active",
-    "payments": [
-      {
-        "amount": 600.00,
-        "date": "October 22, 2026"
-      }
-    ]
-  },
-  {
-    "name": "Grace Ramos",
-    "description": "Concert ticket installment",
-    "total": 4500.00,
-    "paid": 1500.00,
-    "dueDate": "October 20, 2026",
-    "promisedDate": "November 2, 2026",
-    "status": "Promised",
-    "payments": [
-      {
-        "amount": 1500.00,
-        "date": "October 5, 2026"
-      }
-    ]
-  },
-  {
-    "name": "Jayson Bautista",
-    "description": "Apartment deposit split",
-    "total": 5000.00,
-    "paid": 2500.00,
-    "dueDate": "November 15, 2026",
-    "promisedDate": null,
-    "status": "Active",
-    "payments": [
-      {
-        "amount": 2500.00,
-        "date": "October 10, 2026"
-      }
-    ]
-  },
-  {
-    "name": "Dexter Tan",
-    "description": "Electricity and water bills share",
-    "total": 950.00,
-    "paid": 0.00,
-    "dueDate": "November 1, 2026",
-    "promisedDate": null,
-    "status": "Active",
-    "payments": []
-  },
-  {
-    "name": "Rhea Torralba",
-    "description": "Personal peer-to-peer loan",
-    "total": 3000.00,
-    "paid": 1000.00,
-    "dueDate": "October 1, 2026",
-    "promisedDate": "October 29, 2026",
-    "status": "Overdue",
-    "payments": [
-      {
-        "amount": 1000.00,
-        "date": "September 25, 2026"
-      }
-    ]
-  }
+  final List<Map<String, dynamic>> debts = [
+    {
+      "name": "Juan Dela Cruz",
+      "description": "Borrowed for school expenses",
+      "total": 1500.00,
+      "paid": 500.00,
+      "dueDate": "September 28, 2026",
+      "promisedDate": null,
+      "status": "Active",
+      "payments": [
+        {"amount": 500.00, "date": "September 20, 2026"},
+      ],
+    },
+    {
+      "name": "Maria Santos",
+      "description": "Shared food and transportation",
+      "total": 850.00,
+      "paid": 250.00,
+      "dueDate": "October 3, 2026",
+      "promisedDate": null,
+      "status": "Active",
+      "payments": [
+        {"amount": 250.00, "date": "September 19, 2026"},
+      ],
+    },
+    {
+      "name": "Ana Gonzales",
+      "description": "Laptop repair contribution",
+      "total": 2200.00,
+      "paid": 0.00,
+      "dueDate": "October 10, 2026",
+      "promisedDate": "October 30, 2026",
+      "status": "Overdue",
+      "payments": [],
+    },
+    {
+      "name": "Carlo Mendoza",
+      "description": "Grocery run share",
+      "total": 1200.00,
+      "paid": 600.00,
+      "dueDate": "November 5, 2026",
+      "promisedDate": null,
+      "status": "Active",
+      "payments": [
+        {"amount": 600.00, "date": "October 22, 2026"},
+      ],
+    },
+    {
+      "name": "Grace Ramos",
+      "description": "Concert ticket installment",
+      "total": 4500.00,
+      "paid": 1500.00,
+      "dueDate": "October 20, 2026",
+      "promisedDate": "November 2, 2026",
+      "status": "Promised",
+      "payments": [
+        {"amount": 1500.00, "date": "October 5, 2026"},
+      ],
+    },
+    {
+      "name": "Jayson Bautista",
+      "description": "Apartment deposit split",
+      "total": 5000.00,
+      "paid": 2500.00,
+      "dueDate": "November 15, 2026",
+      "promisedDate": null,
+      "status": "Active",
+      "payments": [
+        {"amount": 2500.00, "date": "October 10, 2026"},
+      ],
+    },
+    {
+      "name": "Dexter Tan",
+      "description": "Electricity and water bills share",
+      "total": 950.00,
+      "paid": 0.00,
+      "dueDate": "November 1, 2026",
+      "promisedDate": null,
+      "status": "Active",
+      "payments": [],
+    },
+    {
+      "name": "Rhea Torralba",
+      "description": "Personal peer-to-peer loan",
+      "total": 3000.00,
+      "paid": 1000.00,
+      "dueDate": "October 1, 2026",
+      "promisedDate": "October 29, 2026",
+      "status": "Overdue",
+      "payments": [
+        {"amount": 1000.00, "date": "September 25, 2026"},
+      ],
+    },
   ];
 
   @override
@@ -174,8 +227,9 @@ class _HomePageState extends State<HomePage> {
       });
     });
 
-    _recentPaymentsSubscription =
-        _rtdb.recentPaymentsStream.listen((livePayments) {
+    _recentPaymentsSubscription = _rtdb.recentPaymentsStream.listen((
+      livePayments,
+    ) {
       if (!mounted) return;
       setState(() {
         recentPayments.clear();
@@ -206,14 +260,8 @@ class _HomePageState extends State<HomePage> {
       'promisedDate': null,
       'status': 'Paid',
       'payments': [
-        {
-          'amount': 1000.00,
-          'date': 'September 5, 2026',
-        },
-        {
-          'amount': 1000.00,
-          'date': 'September 15, 2026',
-        },
+        {'amount': 1000.00, 'date': 'September 5, 2026'},
+        {'amount': 1000.00, 'date': 'September 15, 2026'},
       ],
     },
     {
@@ -225,14 +273,8 @@ class _HomePageState extends State<HomePage> {
       'promisedDate': null,
       'status': 'Paid',
       'payments': [
-        {
-          'amount': 2000.00,
-          'date': 'October 1, 2026',
-        },
-        {
-          'amount': 1500.00,
-          'date': 'October 14, 2026',
-        },
+        {'amount': 2000.00, 'date': 'October 1, 2026'},
+        {'amount': 1500.00, 'date': 'October 14, 2026'},
       ],
     },
     {
@@ -244,18 +286,9 @@ class _HomePageState extends State<HomePage> {
       'promisedDate': null,
       'status': 'Paid',
       'payments': [
-        {
-          'amount': 3000.00,
-          'date': 'August 20, 2026',
-        },
-        {
-          'amount': 3000.00,
-          'date': 'September 1, 2026',
-        },
-        {
-          'amount': 2000.00,
-          'date': 'September 14, 2026',
-        },
+        {'amount': 3000.00, 'date': 'August 20, 2026'},
+        {'amount': 3000.00, 'date': 'September 1, 2026'},
+        {'amount': 2000.00, 'date': 'September 14, 2026'},
       ],
     },
   ];
@@ -385,8 +418,9 @@ class _HomePageState extends State<HomePage> {
     if (existingIndex >= 0) {
       final existing = debts[existingIndex];
       existing['total'] = (existing['total'] as num).toDouble() + amount;
-      existing['description'] =
-          description.isEmpty ? existing['description'] : description;
+      existing['description'] = description.isEmpty
+          ? existing['description']
+          : description;
       if (dueDate != null) {
         existing['dueDate'] = dueDate;
       }
@@ -427,7 +461,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
   double get totalDebt {
     double total = 0;
 
@@ -461,8 +494,7 @@ class _HomePageState extends State<HomePage> {
 
     for (final debt in debts) {
       final remaining =
-          (debt['total'] as num).toDouble() -
-          (debt['paid'] as num).toDouble();
+          (debt['total'] as num).toDouble() - (debt['paid'] as num).toDouble();
 
       if (remaining > 0) {
         total += remaining;
@@ -481,13 +513,11 @@ class _HomePageState extends State<HomePage> {
     }).length;
   }
 
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    final username =
-        user?.email?.split('@')[0] ?? 'Buddy';
+    final username = user?.email?.split('@')[0] ?? 'Buddy';
 
     final String query = _debtSearchController.text.trim().toLowerCase();
 
@@ -505,6 +535,16 @@ class _HomePageState extends State<HomePage> {
           (debt['promisedDate'] == null || remaining <= 0)) {
         return false;
       }
+      if (_selectedDebtFilter == 'Overdue') {
+        final isDueOverdue = _isDateOverdue(
+          debt['dueDate'],
+          remaining: remaining,
+        );
+        final isPromisedOverdue =
+            debt['promisedDate'] != null &&
+            _isDateOverdue(debt['promisedDate'], remaining: remaining);
+        if (!isDueOverdue && !isPromisedOverdue) return false;
+      }
 
       return true;
     }).toList();
@@ -521,7 +561,6 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-
 
       appBar: AppBar(
         backgroundColor: primaryPink,
@@ -549,38 +588,26 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
 
-
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
-              decoration: const BoxDecoration(
-                color: primaryPink,
-              ),
+              decoration: const BoxDecoration(color: primaryPink),
 
               accountName: Text(username),
 
-              accountEmail: Text(
-                user?.email ?? 'user@email.com',
-              ),
+              accountEmail: Text(user?.email ?? 'user@email.com'),
 
-              currentAccountPicture:
-                  const CircleAvatar(
+              currentAccountPicture: const CircleAvatar(
                 backgroundColor: Colors.white,
 
-                child: Icon(
-                  Icons.person,
-                  color: primaryPink,
-                  size: 30,
-                ),
+                child: Icon(Icons.person, color: primaryPink, size: 30),
               ),
             ),
 
             ListTile(
-              leading: const Icon(
-                Icons.dashboard_rounded,
-              ),
+              leading: const Icon(Icons.dashboard_rounded),
 
               title: const Text('Dashboard'),
 
@@ -590,9 +617,7 @@ class _HomePageState extends State<HomePage> {
             ),
 
             ListTile(
-              leading: const Icon(
-                Icons.receipt_long_rounded,
-              ),
+              leading: const Icon(Icons.receipt_long_rounded),
 
               title: const Text('Collectibles'),
 
@@ -601,23 +626,17 @@ class _HomePageState extends State<HomePage> {
               },
             ),
 
-
             ListTile(
               leading: const Icon(
                 Icons.account_balance_wallet_rounded,
                 color: primaryPink,
               ),
 
-              title: const Text(
-                'Promissory Vault',
-              ),
+              title: const Text('Promissory Vault'),
 
               subtitle: const Text(
                 'View promised payment dates',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.black54,
-                ),
+                style: TextStyle(fontSize: 11, color: Colors.black54),
               ),
 
               onTap: () {
@@ -626,13 +645,10 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        PromissoryVaultPage(
+                    builder: (_) => PromissoryVaultPage(
                       debts: debts,
-                      onSetPromiseDate:
-                          _setPromiseDate,
-                      onPayDebt:
-                          _showPaymentDialog,
+                      onSetPromiseDate: _setPromiseDate,
+                      onPayDebt: _showPaymentDialog,
                     ),
                   ),
                 );
@@ -640,13 +656,9 @@ class _HomePageState extends State<HomePage> {
             ),
 
             ListTile(
-              leading: const Icon(
-                Icons.history_rounded,
-              ),
+              leading: const Icon(Icons.history_rounded),
 
-              title: const Text(
-                'Payment History',
-              ),
+              title: const Text('Payment History'),
 
               onTap: () {
                 Navigator.pop(context);
@@ -654,42 +666,28 @@ class _HomePageState extends State<HomePage> {
               },
             ),
 
-
             ListTile(
-              leading: const Icon(
-                Icons.verified_rounded,
-                color: green,
-              ),
+              leading: const Icon(Icons.verified_rounded, color: green),
 
-              title: const Text(
-                'Paid People',
-              ),
+              title: const Text('Paid People'),
 
               trailing: paidPeople.isNotEmpty
                   ? Container(
-                      padding:
-                          const EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 3,
                       ),
 
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            Colors.green.shade50,
-                        borderRadius:
-                            BorderRadius.circular(
-                          20,
-                        ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(20),
                       ),
 
                       child: Text(
                         '${paidPeople.length}',
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           color: green,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
                       ),
@@ -702,13 +700,10 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        PaidPeoplePage(
+                    builder: (_) => PaidPeoplePage(
                       paidPeople: paidPeople,
-                      onAddNewDebt:
-                          _addNewDebtToPaidPerson,
-                      onDelete:
-                          _deletePaidPerson,
+                      onAddNewDebt: _addNewDebtToPaidPerson,
+                      onDelete: _deletePaidPerson,
                     ),
                   ),
                 );
@@ -721,23 +716,15 @@ class _HomePageState extends State<HomePage> {
                 color: Color(0xFF6C5CE7),
               ),
 
-              title: const Text(
-                'Service Catalog',
-              ),
+              title: const Text('Service Catalog'),
 
               subtitle: const Text(
                 'Predefined debts & billing templates',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.black54,
-                ),
+                style: TextStyle(fontSize: 11, color: Colors.black54),
               ),
 
               trailing: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: const Color(0xFF6C5CE7).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -759,13 +746,9 @@ class _HomePageState extends State<HomePage> {
             ),
 
             ListTile(
-              leading: const Icon(
-                Icons.alarm_rounded,
-              ),
+              leading: const Icon(Icons.alarm_rounded),
 
-              title: const Text(
-                'Payment Reminders',
-              ),
+              title: const Text('Payment Reminders'),
 
               onTap: () {
                 Navigator.pop(context);
@@ -776,35 +759,27 @@ class _HomePageState extends State<HomePage> {
             const Divider(),
 
             ListTile(
-              leading: const Icon(
-                Icons.logout,
-                color: Colors.red,
-              ),
+              leading: const Icon(Icons.logout, color: Colors.red),
 
               title: const Text(
                 'Sign Out',
-                style: TextStyle(
-                  color: Colors.red,
-                ),
+                style: TextStyle(color: Colors.red),
               ),
 
               onTap: () async {
-                await FirebaseAuth.instance
-                    .signOut();
+                await FirebaseAuth.instance.signOut();
               },
             ),
           ],
         ),
       ),
 
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
 
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
 
             children: [
               Text(
@@ -822,58 +797,42 @@ class _HomePageState extends State<HomePage> {
               const Text(
                 'Keep track of who owes you.',
 
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.black54),
               ),
 
               const SizedBox(height: 18),
 
-
               Container(
                 width: double.infinity,
 
-                padding:
-                    const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
 
                 decoration: BoxDecoration(
-                  gradient:
-                      const LinearGradient(
-                    colors: [
-                      primaryPink,
-                      Color(0xFFFF4F8A),
-                    ],
+                  gradient: const LinearGradient(
+                    colors: [primaryPink, Color(0xFFFF4F8A)],
                   ),
 
-                  borderRadius:
-                      BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(20),
 
                   boxShadow: [
                     BoxShadow(
-                      color: primaryPink
-                          .withValues(alpha: 0.25),
+                      color: primaryPink.withValues(alpha: 0.25),
 
                       blurRadius: 12,
 
-                      offset:
-                          const Offset(0, 6),
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
 
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
 
                   children: [
                     const Text(
                       'Total to Collect',
 
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
 
                     const SizedBox(height: 5),
@@ -884,8 +843,7 @@ class _HomePageState extends State<HomePage> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 30,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
 
@@ -893,10 +851,7 @@ class _HomePageState extends State<HomePage> {
 
                     Row(
                       children: [
-                        _summaryItem(
-                          'Active Debts',
-                          '$activeDebtCount',
-                        ),
+                        _summaryItem('Active Debts', '$activeDebtCount'),
 
                         const SizedBox(width: 24),
 
@@ -934,33 +889,25 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 22),
 
-
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
                 children: [
                   const Text(
                     'Quick Actions',
 
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
 
                   TextButton(
-                    onPressed:
-                        _showAddDebtDialog,
+                    onPressed: _showAddDebtDialog,
 
                     child: const Text(
                       '+ Add Debt',
 
                       style: TextStyle(
                         color: primaryPink,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -1074,9 +1021,11 @@ class _HomePageState extends State<HomePage> {
                     _filterChip(
                       label: 'Active',
                       count: debts
-                          .where((d) =>
-                              (d['total'] as num).toDouble() >
-                              (d['paid'] as num).toDouble())
+                          .where(
+                            (d) =>
+                                (d['total'] as num).toDouble() >
+                                (d['paid'] as num).toDouble(),
+                          )
                           .length,
                     ),
                     const SizedBox(width: 8),
@@ -1084,11 +1033,30 @@ class _HomePageState extends State<HomePage> {
                       label: 'Promised',
                       icon: Icons.alarm,
                       count: debts
-                          .where((d) =>
-                              d['promisedDate'] != null &&
-                              (d['total'] as num).toDouble() >
-                              (d['paid'] as num).toDouble())
+                          .where(
+                            (d) =>
+                                d['promisedDate'] != null &&
+                                (d['total'] as num).toDouble() >
+                                    (d['paid'] as num).toDouble(),
+                          )
                           .length,
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      label: 'Overdue',
+                      icon: Icons.warning_amber_rounded,
+                      count: debts.where((d) {
+                        final rem =
+                            (d['total'] as num).toDouble() -
+                            (d['paid'] as num).toDouble();
+                        return rem > 0 &&
+                            (_isDateOverdue(d['dueDate'], remaining: rem) ||
+                                (d['promisedDate'] != null &&
+                                    _isDateOverdue(
+                                      d['promisedDate'],
+                                      remaining: rem,
+                                    )));
+                      }).length,
                     ),
                     const SizedBox(width: 8),
                     _filterChip(
@@ -1102,16 +1070,11 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 18),
 
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'My Collectibles',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   Text(
                     _debtSearchController.text.isNotEmpty ||
@@ -1121,8 +1084,7 @@ class _HomePageState extends State<HomePage> {
                     style: const TextStyle(
                       color: primaryPink,
                       fontSize: 13,
-                      fontWeight:
-                          FontWeight.w600,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -1137,43 +1099,30 @@ class _HomePageState extends State<HomePage> {
               else
                 ...filteredDebts.map(
                   (debt) => Padding(
-                    padding:
-                        const EdgeInsets.only(
-                      bottom: 14,
-                    ),
-                    child:
-                        _debtCard(debt),
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _debtCard(debt),
                   ),
                 ),
 
               const SizedBox(height: 10),
 
-
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
                 children: [
                   const Text(
                     'Recent Payments',
 
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
 
                   TextButton(
-                    onPressed:
-                        _showAllHistory,
+                    onPressed: _showAllHistory,
 
                     child: const Text(
                       'View All',
 
-                      style: TextStyle(
-                        color: primaryPink,
-                      ),
+                      style: TextStyle(color: primaryPink),
                     ),
                   ),
                 ],
@@ -1189,9 +1138,7 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-
-      floatingActionButton:
-          FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: primaryPink,
         foregroundColor: Colors.white,
 
@@ -1200,35 +1147,26 @@ class _HomePageState extends State<HomePage> {
         label: const Text(
           'Add Debt',
 
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
 
-        onPressed:
-            _showAddDebtDialog,
+        onPressed: _showAddDebtDialog,
       ),
     );
   }
-
 
   Widget _emptyCollectibles() {
     return Container(
       width: double.infinity,
 
-      padding:
-          const EdgeInsets.all(30),
+      padding: const EdgeInsets.all(30),
 
       decoration: BoxDecoration(
         color: Colors.white,
 
-        borderRadius:
-            BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18),
 
-        border:
-            Border.all(
-          color: borderPink,
-        ),
+        border: Border.all(color: borderPink),
       ),
 
       child: Column(
@@ -1238,8 +1176,7 @@ class _HomePageState extends State<HomePage> {
 
             size: 50,
 
-            color:
-                primaryPink.withValues(alpha: 0.6),
+            color: primaryPink.withValues(alpha: 0.6),
           ),
 
           const SizedBox(height: 10),
@@ -1247,11 +1184,7 @@ class _HomePageState extends State<HomePage> {
           const Text(
             'No active debts',
 
-            style: TextStyle(
-              fontWeight:
-                  FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
 
           const SizedBox(height: 5),
@@ -1259,13 +1192,9 @@ class _HomePageState extends State<HomePage> {
           const Text(
             'Add a person to start tracking a debt.',
 
-            textAlign:
-                TextAlign.center,
+            textAlign: TextAlign.center,
 
-            style: TextStyle(
-              color: Colors.black54,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.black54, fontSize: 13),
           ),
         ],
       ),
@@ -1283,28 +1212,18 @@ class _HomePageState extends State<HomePage> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.search_off_rounded,
-            size: 48,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.search_off_rounded, size: 48, color: Colors.grey.shade400),
           const SizedBox(height: 10),
           const Text(
             'No matching debtors found',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
           const SizedBox(height: 4),
           Text(
             _debtSearchController.text.isNotEmpty
                 ? 'No debtor matches "${_debtSearchController.text}".'
                 : 'No debtor matches the "$_selectedDebtFilter" filter.',
-            style: const TextStyle(
-              color: Colors.black54,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
@@ -1315,21 +1234,27 @@ class _HomePageState extends State<HomePage> {
                 _selectedDebtFilter = 'All';
               });
             },
-            icon: const Icon(Icons.refresh_rounded, size: 16, color: primaryPink),
-            label: const Text('Reset search & filters',
-                style: TextStyle(color: primaryPink)),
+            icon: const Icon(
+              Icons.refresh_rounded,
+              size: 16,
+              color: primaryPink,
+            ),
+            label: const Text(
+              'Reset search & filters',
+              style: TextStyle(color: primaryPink),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _filterChip({
-    required String label,
-    IconData? icon,
-    int? count,
-  }) {
+  Widget _filterChip({required String label, IconData? icon, int? count}) {
     final isSelected = _selectedDebtFilter == label;
+    final isOverdueChip = label == 'Overdue';
+    final chipColor = isOverdueChip ? Colors.red.shade700 : primaryPink;
+    final chipBorder = isOverdueChip ? Colors.red.shade300 : borderPink;
+
     return ChoiceChip(
       selected: isSelected,
       onSelected: (selected) {
@@ -1338,41 +1263,32 @@ class _HomePageState extends State<HomePage> {
         });
       },
       avatar: icon != null
-          ? Icon(
-              icon,
-              size: 15,
-              color: isSelected ? Colors.white : primaryPink,
-            )
+          ? Icon(icon, size: 15, color: isSelected ? Colors.white : chipColor)
           : null,
       label: Text(
         count != null ? '$label ($count)' : label,
         style: TextStyle(
           fontSize: 12,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? Colors.white : Colors.black87,
+          color: isSelected
+              ? Colors.white
+              : (isOverdueChip ? Colors.red.shade700 : Colors.black87),
         ),
       ),
       backgroundColor: Colors.white,
-      selectedColor: primaryPink,
+      selectedColor: chipColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected ? primaryPink : borderPink,
-        ),
+        side: BorderSide(color: isSelected ? chipColor : chipBorder),
       ),
       showCheckmark: false,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
     );
   }
 
-
-  Widget _summaryItem(
-    String title,
-    String value,
-  ) {
+  Widget _summaryItem(String title, String value) {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
         Text(
@@ -1381,8 +1297,7 @@ class _HomePageState extends State<HomePage> {
           style: const TextStyle(
             color: Colors.white,
             fontSize: 17,
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
 
@@ -1391,15 +1306,11 @@ class _HomePageState extends State<HomePage> {
         Text(
           title,
 
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ],
     );
   }
-
 
   Widget _quickAction({
     required IconData icon,
@@ -1410,25 +1321,16 @@ class _HomePageState extends State<HomePage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          vertical: 12,
-          horizontal: 4,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: borderPink,
-          ),
+          border: Border.all(color: borderPink),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: primaryPink,
-              size: 24,
-            ),
+            Icon(icon, color: primaryPink, size: 24),
             const SizedBox(height: 6),
             SizedBox(
               height: 28,
@@ -1451,63 +1353,53 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _debtCard(Map<String, dynamic> debt) {
+    final double total = (debt['total'] as num).toDouble();
 
-  Widget _debtCard(
-    Map<String, dynamic> debt,
-  ) {
-    final double total =
-        (debt['total'] as num)
-            .toDouble();
+    final double paid = (debt['paid'] as num).toDouble();
 
-    final double paid =
-        (debt['paid'] as num)
-            .toDouble();
+    final double remaining = total - paid;
 
-    final double remaining =
-        total - paid;
+    final double progress = total <= 0 ? 0 : (paid / total).clamp(0.0, 1.0);
 
-    final double progress =
-        total <= 0
-            ? 0
-            : (paid / total)
-                .clamp(0.0, 1.0);
+    final bool completed = remaining <= 0 || debt['status'] == 'Paid';
 
-    final bool completed =
-        remaining <= 0;
+    final bool isDueOverdue =
+        !completed && _isDateOverdue(debt['dueDate'], remaining: remaining);
+    final bool isPromisedOverdue =
+        !completed &&
+        debt['promisedDate'] != null &&
+        _isDateOverdue(debt['promisedDate'], remaining: remaining);
+    final bool isAnyOverdue = isDueOverdue || isPromisedOverdue;
 
     return InkWell(
       onTap: () {
         _showDebtDetails(debt);
       },
 
-      borderRadius:
-          BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(18),
 
       child: Container(
-        padding:
-            const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
 
         decoration: BoxDecoration(
           color: cardColor,
 
-          borderRadius:
-              BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(18),
 
           border: Border.all(
             color: completed
                 ? Colors.green.shade200
-                : borderPink,
+                : (isAnyOverdue ? Colors.red.shade300 : borderPink),
           ),
 
           boxShadow: [
             BoxShadow(
-              color: Colors.black
-                  .withValues(alpha: 0.04),
+              color: Colors.black.withValues(alpha: 0.04),
 
               blurRadius: 8,
 
-              offset:
-                  const Offset(0, 3),
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -1519,24 +1411,19 @@ class _HomePageState extends State<HomePage> {
                 CircleAvatar(
                   radius: 25,
 
-                  backgroundColor:
-                      completed
-                          ? Colors.green.shade50
-                          : lightPink,
+                  backgroundColor: completed
+                      ? Colors.green.shade50
+                      : (isAnyOverdue ? Colors.red.shade50 : lightPink),
 
                   child: Text(
-                    debt['name']
-                        .toString()
-                        .substring(0, 1)
-                        .toUpperCase(),
+                    debt['name'].toString().substring(0, 1).toUpperCase(),
 
                     style: TextStyle(
                       color: completed
                           ? green
-                          : primaryPink,
+                          : (isAnyOverdue ? Colors.red.shade700 : primaryPink),
 
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
 
                       fontSize: 18,
                     ),
@@ -1547,18 +1434,15 @@ class _HomePageState extends State<HomePage> {
 
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
                       Text(
                         debt['name'],
 
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
 
@@ -1569,14 +1453,11 @@ class _HomePageState extends State<HomePage> {
 
                         maxLines: 2,
 
-                        overflow:
-                            TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
 
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
-                          color:
-                              Colors.black54,
+                          color: Colors.black54,
                         ),
                       ),
                     ],
@@ -1584,38 +1465,33 @@ class _HomePageState extends State<HomePage> {
                 ),
 
                 Container(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 9,
                     vertical: 5,
                   ),
 
-                  decoration:
-                      BoxDecoration(
+                  decoration: BoxDecoration(
                     color: completed
                         ? Colors.green.shade50
-                        : lightPink,
+                        : (isAnyOverdue ? Colors.red.shade50 : lightPink),
 
-                    borderRadius:
-                        BorderRadius.circular(
-                      20,
-                    ),
+                    borderRadius: BorderRadius.circular(20),
+
+                    border: isAnyOverdue && !completed
+                        ? Border.all(color: Colors.red.shade300)
+                        : null,
                   ),
 
                   child: Text(
-                    completed
-                        ? 'Paid'
-                        : 'Active',
+                    completed ? 'Paid' : (isAnyOverdue ? 'Overdue' : 'Active'),
 
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
 
                       color: completed
                           ? green
-                          : darkPink,
+                          : (isAnyOverdue ? Colors.red.shade700 : darkPink),
                     ),
                   ),
                 ),
@@ -1625,29 +1501,21 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 15),
 
             Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
               children: [
                 Text(
                   '₱${paid.toStringAsFixed(2)} paid',
 
-                  style:
-                      const TextStyle(
-                    fontSize: 12,
-                    color:
-                        Colors.black54,
-                  ),
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
 
                 Text(
                   '₱${total.toStringAsFixed(2)} total',
 
-                  style:
-                      const TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
-                    fontWeight:
-                        FontWeight.w600,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -1656,23 +1524,16 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 7),
 
             ClipRRect(
-              borderRadius:
-                  BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(10),
 
-              child:
-                  LinearProgressIndicator(
+              child: LinearProgressIndicator(
                 value: progress,
 
                 minHeight: 7,
 
-                backgroundColor:
-                    lightPink,
+                backgroundColor: lightPink,
 
-                valueColor:
-                    const AlwaysStoppedAnimation<
-                        Color>(
-                  primaryPink,
-                ),
+                valueColor: const AlwaysStoppedAnimation<Color>(primaryPink),
               ),
             ),
 
@@ -1680,23 +1541,30 @@ class _HomePageState extends State<HomePage> {
 
             Row(
               children: [
-                const Icon(
-                  Icons.calendar_today_rounded,
+                Icon(
+                  isDueOverdue
+                      ? Icons.error_outline_rounded
+                      : Icons.calendar_today_rounded,
                   size: 14,
-                  color: Colors.black45,
+                  color: isDueOverdue ? Colors.red.shade700 : Colors.black45,
                 ),
 
                 const SizedBox(width: 5),
 
                 Expanded(
                   child: Text(
-                    'Due ${debt['dueDate']}',
+                    isDueOverdue
+                        ? 'Due ${debt['dueDate']} (Overdue)'
+                        : 'Due ${debt['dueDate']}',
 
-                    style:
-                        const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color:
-                          Colors.black54,
+                      color: isDueOverdue
+                          ? Colors.red.shade700
+                          : Colors.black54,
+                      fontWeight: isDueOverdue
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -1705,12 +1573,10 @@ class _HomePageState extends State<HomePage> {
                   Text(
                     '₱${remaining.toStringAsFixed(2)} left',
 
-                    style:
-                        const TextStyle(
-                      color: primaryPink,
+                    style: TextStyle(
+                      color: isAnyOverdue ? Colors.red.shade700 : primaryPink,
                       fontSize: 12,
-                      fontWeight:
-                          FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
               ],
@@ -1722,24 +1588,27 @@ class _HomePageState extends State<HomePage> {
               Container(
                 width: double.infinity,
 
-                padding:
-                    const EdgeInsets.all(9),
+                padding: const EdgeInsets.all(9),
 
-                decoration:
-                    BoxDecoration(
-                  color: lightPink,
+                decoration: BoxDecoration(
+                  color: isPromisedOverdue ? Colors.red.shade50 : lightPink,
 
-                  borderRadius:
-                      BorderRadius.circular(
-                    10,
-                  ),
+                  borderRadius: BorderRadius.circular(10),
+
+                  border: isPromisedOverdue
+                      ? Border.all(color: Colors.red.shade300)
+                      : null,
                 ),
 
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.handshake_rounded,
-                      color: primaryPink,
+                    Icon(
+                      isPromisedOverdue
+                          ? Icons.warning_amber_rounded
+                          : Icons.handshake_rounded,
+                      color: isPromisedOverdue
+                          ? Colors.red.shade700
+                          : primaryPink,
                       size: 16,
                     ),
 
@@ -1747,14 +1616,16 @@ class _HomePageState extends State<HomePage> {
 
                     Expanded(
                       child: Text(
-                        'Promised: ${debt['promisedDate']}',
+                        isPromisedOverdue
+                            ? 'Promised: ${debt['promisedDate']} (Overdue)'
+                            : 'Promised: ${debt['promisedDate']}',
 
-                        style:
-                            const TextStyle(
-                          color: primaryPink,
+                        style: TextStyle(
+                          color: isPromisedOverdue
+                              ? Colors.red.shade700
+                              : primaryPink,
                           fontSize: 11,
-                          fontWeight:
-                              FontWeight.w600,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -1768,48 +1639,27 @@ class _HomePageState extends State<HomePage> {
             Row(
               children: [
                 Expanded(
-                  child:
-                      OutlinedButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed: () {
-                      _showDebtDetails(
-                        debt,
-                      );
+                      _showDebtDetails(debt);
                     },
 
-                    icon: const Icon(
-                      Icons.history,
-                      size: 16,
-                    ),
+                    icon: const Icon(Icons.history, size: 16),
 
-                    label:
-                        const FittedBox(
+                    label: const FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text(
-                        'Details',
-                      ),
+                      child: Text('Details'),
                     ),
 
-                    style:
-                        OutlinedButton.styleFrom(
-                      foregroundColor:
-                          primaryPink,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: primaryPink,
 
-                      side:
-                          const BorderSide(
-                        color: borderPink,
-                      ),
+                      side: const BorderSide(color: borderPink),
 
-                      padding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 6,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
 
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -1818,48 +1668,27 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(width: 6),
 
                 Expanded(
-                  child:
-                      OutlinedButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed: () {
-                      _showAddDebtForDebtorDialog(
-                        debt,
-                      );
+                      _showAddDebtForDebtorDialog(debt);
                     },
 
-                    icon: const Icon(
-                      Icons.add_circle_outline,
-                      size: 16,
-                    ),
+                    icon: const Icon(Icons.add_circle_outline, size: 16),
 
-                    label:
-                        const FittedBox(
+                    label: const FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text(
-                        'Add Debt',
-                      ),
+                      child: Text('Add Debt'),
                     ),
 
-                    style:
-                        OutlinedButton.styleFrom(
-                      foregroundColor:
-                          primaryPink,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: primaryPink,
 
-                      side:
-                          const BorderSide(
-                        color: borderPink,
-                      ),
+                      side: const BorderSide(color: borderPink),
 
-                      padding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 6,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
 
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -1869,48 +1698,29 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(width: 6),
 
                   Expanded(
-                    child:
-                        ElevatedButton.icon(
+                    child: ElevatedButton.icon(
                       onPressed: () {
-                        _showPaymentDialog(
-                          debt,
-                        );
+                        _showPaymentDialog(debt);
                       },
 
-                      icon: const Icon(
-                        Icons.payments_outlined,
-                        size: 16,
-                      ),
+                      icon: const Icon(Icons.payments_outlined, size: 16),
 
-                      label:
-                          const FittedBox(
+                      label: const FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(
-                          'Pay Debt',
-                        ),
+                        child: Text('Pay Debt'),
                       ),
 
-                      style:
-                          ElevatedButton.styleFrom(
-                        backgroundColor:
-                            primaryPink,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryPink,
 
-                        foregroundColor:
-                            Colors.white,
+                        foregroundColor: Colors.white,
 
                         elevation: 0,
 
-                        padding:
-                            const EdgeInsets.symmetric(
-                          horizontal: 6,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
 
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(
-                            12,
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -1924,61 +1734,47 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _showDebtDetails(Map<String, dynamic> debt) {
+    final double total = (debt['total'] as num).toDouble();
 
-  void _showDebtDetails(
-    Map<String, dynamic> debt,
-  ) {
-    final double total =
-        (debt['total'] as num)
-            .toDouble();
+    final double paid = (debt['paid'] as num).toDouble();
 
-    final double paid =
-        (debt['paid'] as num)
-            .toDouble();
+    final double remaining = total - paid;
 
-    final double remaining =
-        total - paid;
+    final bool completed = remaining <= 0 || debt['status'] == 'Paid';
 
-    final bool completed =
-        remaining <= 0;
+    final bool isDueOverdue =
+        !completed && _isDateOverdue(debt['dueDate'], remaining: remaining);
+    final bool isPromisedOverdue =
+        !completed &&
+        debt['promisedDate'] != null &&
+        _isDateOverdue(debt['promisedDate'], remaining: remaining);
 
     showModalBottomSheet(
       context: context,
 
       isScrollControlled: true,
 
-      backgroundColor:
-          Colors.transparent,
+      backgroundColor: Colors.transparent,
 
       builder: (sheetContext) {
         return Container(
-          constraints:
-              BoxConstraints(
-            maxHeight:
-                MediaQuery.of(
-                  sheetContext,
-                ).size.height *
-                0.90,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.90,
           ),
 
-          padding:
-              const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
 
-          decoration:
-              const BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
 
-            borderRadius:
-                BorderRadius.vertical(
-              top: Radius.circular(25),
-            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
           ),
 
           child: SafeArea(
             child: SingleChildScrollView(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
 
                 children: [
                   Center(
@@ -1986,15 +1782,10 @@ class _HomePageState extends State<HomePage> {
                       width: 45,
                       height: 5,
 
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            Colors.black12,
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
 
-                        borderRadius:
-                            BorderRadius.circular(
-                          10,
-                        ),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
@@ -2006,26 +1797,17 @@ class _HomePageState extends State<HomePage> {
                       CircleAvatar(
                         radius: 27,
 
-                        backgroundColor:
-                            completed
-                                ? Colors.green
-                                    .shade50
-                                : lightPink,
+                        backgroundColor: completed
+                            ? Colors.green.shade50
+                            : lightPink,
 
                         child: Text(
-                          debt['name']
-                              .toString()
-                              .substring(0, 1)
-                              .toUpperCase(),
+                          debt['name'].toString().substring(0, 1).toUpperCase(),
 
-                          style:
-                              TextStyle(
-                            color: completed
-                                ? green
-                                : primaryPink,
+                          style: TextStyle(
+                            color: completed ? green : primaryPink,
 
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
 
                             fontSize: 20,
                           ),
@@ -2036,29 +1818,23 @@ class _HomePageState extends State<HomePage> {
 
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
 
                           children: [
                             Text(
                               debt['name'],
 
-                              style:
-                                  const TextStyle(
+                              style: const TextStyle(
                                 fontSize: 20,
-                                fontWeight:
-                                    FontWeight.bold,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
 
                             Text(
                               debt['description'],
 
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Colors.black54,
+                              style: const TextStyle(
+                                color: Colors.black54,
                                 fontSize: 13,
                               ),
                             ),
@@ -2070,20 +1846,11 @@ class _HomePageState extends State<HomePage> {
 
                   const SizedBox(height: 20),
 
-                  _detailRow(
-                    'Total Debt',
-                    '₱${total.toStringAsFixed(2)}',
-                  ),
+                  _detailRow('Total Debt', '₱${total.toStringAsFixed(2)}'),
 
-                  _detailRow(
-                    'Paid',
-                    '₱${paid.toStringAsFixed(2)}',
-                  ),
+                  _detailRow('Paid', '₱${paid.toStringAsFixed(2)}'),
 
-                  _detailRow(
-                    'Remaining',
-                    '₱${remaining.toStringAsFixed(2)}',
-                  ),
+                  _detailRow('Remaining', '₱${remaining.toStringAsFixed(2)}'),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2097,8 +1864,35 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           Text(
                             debt['dueDate']?.toString() ?? 'Not set',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isDueOverdue
+                                  ? Colors.red.shade700
+                                  : Colors.black87,
+                            ),
                           ),
+                          if (isDueOverdue) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.red.shade300),
+                              ),
+                              child: Text(
+                                'OVERDUE',
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                           if (!completed) ...[
                             const SizedBox(width: 8),
                             InkWell(
@@ -2139,7 +1933,12 @@ class _HomePageState extends State<HomePage> {
                   if (debt['promisedDate'] != null && !completed)
                     _detailRow(
                       'Promised Date',
-                      debt['promisedDate'],
+                      isPromisedOverdue
+                          ? '${debt['promisedDate']} (OVERDUE)'
+                          : debt['promisedDate'],
+                      valueColor: isPromisedOverdue
+                          ? Colors.red.shade700
+                          : null,
                     ),
 
                   const SizedBox(height: 18),
@@ -2151,16 +1950,11 @@ class _HomePageState extends State<HomePage> {
                       decoration: BoxDecoration(
                         color: Colors.green.shade50,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.green.shade200,
-                        ),
+                        border: Border.all(color: Colors.green.shade200),
                       ),
                       child: const Row(
                         children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            color: green,
-                          ),
+                          Icon(Icons.check_circle_rounded, color: green),
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -2180,28 +1974,40 @@ class _HomePageState extends State<HomePage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: lightPink,
+                        color: isPromisedOverdue
+                            ? Colors.red.shade50
+                            : lightPink,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: borderPink,
+                          color: isPromisedOverdue
+                              ? Colors.red.shade300
+                              : borderPink,
                         ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
                               Icon(
-                                Icons.handshake_rounded,
-                                color: primaryPink,
+                                isPromisedOverdue
+                                    ? Icons.warning_amber_rounded
+                                    : Icons.handshake_rounded,
+                                color: isPromisedOverdue
+                                    ? Colors.red.shade700
+                                    : primaryPink,
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Promissory Commitment',
+                                  isPromisedOverdue
+                                      ? 'Promissory Commitment (Overdue)'
+                                      : 'Promissory Commitment',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: primaryPink,
+                                    color: isPromisedOverdue
+                                        ? Colors.red.shade700
+                                        : primaryPink,
                                   ),
                                 ),
                               ),
@@ -2211,10 +2017,17 @@ class _HomePageState extends State<HomePage> {
                           Text(
                             debt['promisedDate'] == null
                                 ? 'No promised payment date has been set.'
-                                : 'Promised to pay on ${debt['promisedDate']}.',
-                            style: const TextStyle(
+                                : (isPromisedOverdue
+                                      ? '⚠️ Overdue! Promised to pay on ${debt['promisedDate']}.'
+                                      : 'Promised to pay on ${debt['promisedDate']}.'),
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.black54,
+                              color: isPromisedOverdue
+                                  ? Colors.red.shade700
+                                  : Colors.black54,
+                              fontWeight: isPromisedOverdue
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -2249,81 +2062,48 @@ class _HomePageState extends State<HomePage> {
 
                   const SizedBox(height: 18),
 
-
                   const Text(
                     'Payment History',
 
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
 
                   const SizedBox(height: 8),
 
-                  if ((debt['payments']
-                          as List)
-                      .isEmpty)
+                  if ((debt['payments'] as List).isEmpty)
                     const Padding(
-                      padding:
-                          EdgeInsets.symmetric(
-                        vertical: 15,
-                      ),
+                      padding: EdgeInsets.symmetric(vertical: 15),
 
                       child: Text(
                         'No payments recorded yet.',
 
-                        style: TextStyle(
-                          color:
-                              Colors.black54,
-                        ),
+                        style: TextStyle(color: Colors.black54),
                       ),
                     )
                   else
-                    ...List.generate(
-                      (debt['payments']
-                              as List)
-                          .length,
-                      (index) {
-                        final payment =
-                            debt['payments']
-                                [index];
+                    ...List.generate((debt['payments'] as List).length, (
+                      index,
+                    ) {
+                      final payment = debt['payments'][index];
 
-                        return ListTile(
-                          contentPadding:
-                              EdgeInsets.zero,
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
 
-                          leading:
-                              const CircleAvatar(
-                            backgroundColor:
-                                Color(
-                              0xFFE8F7F0,
-                            ),
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFE8F7F0),
 
-                            child: Icon(
-                              Icons.check,
-                              color: green,
-                            ),
-                          ),
+                          child: Icon(Icons.check, color: green),
+                        ),
 
-                          title: Text(
-                            '₱${(payment['amount'] as num).toDouble().toStringAsFixed(2)}',
+                        title: Text(
+                          '₱${(payment['amount'] as num).toDouble().toStringAsFixed(2)}',
 
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
 
-                          subtitle:
-                              Text(
-                            payment['date'],
-                          ),
-                        );
-                      },
-                    ),
+                        subtitle: Text(payment['date']),
+                      );
+                    }),
 
                   const SizedBox(height: 12),
 
@@ -2331,33 +2111,21 @@ class _HomePageState extends State<HomePage> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Navigator.pop(
-                          sheetContext,
-                        );
+                        Navigator.pop(sheetContext);
 
-                        _showAddDebtForDebtorDialog(
-                          debt,
-                        );
+                        _showAddDebtForDebtorDialog(debt);
                       },
                       icon: const Icon(
                         Icons.add_circle_outline_rounded,
                         size: 18,
                       ),
-                      label: const Text(
-                        'Add Debt',
-                      ),
+                      label: const Text('Add Debt'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: primaryPink,
-                        side: const BorderSide(
-                          color: borderPink,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                        ),
+                        side: const BorderSide(color: borderPink),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            14,
-                          ),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
                     ),
@@ -2367,50 +2135,28 @@ class _HomePageState extends State<HomePage> {
 
                   if (!completed)
                     SizedBox(
-                      width:
-                          double.infinity,
+                      width: double.infinity,
 
-                      child:
-                          ElevatedButton.icon(
+                      child: ElevatedButton.icon(
                         onPressed: () {
-                          Navigator.pop(
-                            sheetContext,
-                          );
+                          Navigator.pop(sheetContext);
 
-                          _showPaymentDialog(
-                            debt,
-                          );
+                          _showPaymentDialog(debt);
                         },
 
-                        icon: const Icon(
-                          Icons.payments,
-                        ),
+                        icon: const Icon(Icons.payments),
 
-                        label: const Text(
-                          'Pay Debt',
-                        ),
+                        label: const Text('Pay Debt'),
 
-                        style:
-                            ElevatedButton
-                                .styleFrom(
-                          backgroundColor:
-                              primaryPink,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryPink,
 
-                          foregroundColor:
-                              Colors.white,
+                          foregroundColor: Colors.white,
 
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            vertical: 14,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
 
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(
-                              14,
-                            ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                       ),
@@ -2418,35 +2164,25 @@ class _HomePageState extends State<HomePage> {
 
                   const SizedBox(height: 8),
 
-
                   SizedBox(
-                    width:
-                        double.infinity,
+                    width: double.infinity,
 
-                    child:
-                        TextButton.icon(
+                    child: TextButton.icon(
                       onPressed: () {
-                        Navigator.pop(
-                          sheetContext,
-                        );
+                        Navigator.pop(sheetContext);
 
-                        _confirmDeleteDebt(
-                          debt,
-                        );
+                        _confirmDeleteDebt(debt);
                       },
 
                       icon: const Icon(
-                        Icons
-                            .delete_outline_rounded,
+                        Icons.delete_outline_rounded,
                         color: Colors.red,
                         size: 18,
                       ),
 
                       label: const Text(
                         'Delete Person',
-                        style: TextStyle(
-                          color: Colors.red,
-                        ),
+                        style: TextStyle(color: Colors.red),
                       ),
                     ),
                   ),
@@ -2459,41 +2195,25 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-  Widget _detailRow(
-    String title,
-    String value,
-  ) {
+  Widget _detailRow(String title, String value, {Color? valueColor}) {
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 6),
 
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
         children: [
-          Text(
-            title,
-
-            style: const TextStyle(
-              color: Colors.black54,
-            ),
-          ),
+          Text(title, style: const TextStyle(color: Colors.black54)),
 
           Flexible(
             child: Text(
               value,
 
-              textAlign:
-                  TextAlign.right,
+              textAlign: TextAlign.right,
 
-              style:
-                  const TextStyle(
-                fontWeight:
-                    FontWeight.bold,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: valueColor ?? Colors.black87,
               ),
             ),
           ),
@@ -2502,10 +2222,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-  Future<void> _setDueDate(
-    Map<String, dynamic> debt,
-  ) async {
+  Future<void> _setDueDate(Map<String, dynamic> debt) async {
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
     final DateTime initialDate = today.add(const Duration(days: 7));
@@ -2554,15 +2271,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _setPromiseDate(
-    Map<String, dynamic> debt,
-  ) async {
-    final double total =
-        (debt['total'] as num).toDouble();
-    final double paid =
-        (debt['paid'] as num).toDouble();
-    final double remaining =
-        total - paid;
+  Future<void> _setPromiseDate(Map<String, dynamic> debt) async {
+    final double total = (debt['total'] as num).toDouble();
+    final double paid = (debt['paid'] as num).toDouble();
+    final double remaining = total - paid;
 
     if (remaining <= 0 || debt['status'] == 'Paid') {
       setState(() {
@@ -2582,52 +2294,37 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final DateTime now =
-        DateTime.now();
+    final DateTime now = DateTime.now();
 
     DateTime initialDate = now;
 
     if (debt['promisedDate'] != null) {
-      final parsed =
-          DateTime.tryParse(
-        debt['promisedDate']
-            .toString(),
-      );
+      final parsed = DateTime.tryParse(debt['promisedDate'].toString());
 
-      if (parsed != null &&
-          !parsed.isBefore(now)) {
+      if (parsed != null && !parsed.isBefore(now)) {
         initialDate = parsed;
       }
     }
 
-    final DateTime? selectedDate =
-        await showDatePicker(
+    final DateTime? selectedDate = await showDatePicker(
       context: context,
 
       initialDate: initialDate,
 
       firstDate: now,
 
-      lastDate: DateTime(
-        now.year + 10,
-        12,
-        31,
-      ),
+      lastDate: DateTime(now.year + 10, 12, 31),
 
-      helpText:
-          'Select promised payment date',
+      helpText: 'Select promised payment date',
 
       cancelText: 'Cancel',
 
       confirmText: 'Set Date',
 
-      builder:
-          (context, child) {
+      builder: (context, child) {
         return Theme(
-          data: Theme.of(context)
-              .copyWith(
-            colorScheme:
-                const ColorScheme.light(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
               primary: primaryPink,
               onPrimary: Colors.white,
               surface: Colors.white,
@@ -2644,30 +2341,22 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final formattedDate =
-        _formatDate(selectedDate);
+    final formattedDate = _formatDate(selectedDate);
 
     setState(() {
-      debt['promisedDate'] =
-          formattedDate;
+      debt['promisedDate'] = formattedDate;
     });
 
     _rtdb.saveDebt(debt);
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '${debt['name']} promised to pay on $formattedDate.',
-        ),
+        content: Text('${debt['name']} promised to pay on $formattedDate.'),
       ),
     );
   }
 
-
-  String _formatDate(
-    DateTime date,
-  ) {
+  String _formatDate(DateTime date) {
     const months = [
       'January',
       'February',
@@ -2688,23 +2377,21 @@ class _HomePageState extends State<HomePage> {
         '${date.year}';
   }
 
+  DateTime? _parseAnyDate(dynamic dateValue) => parseAnyDate(dateValue);
+  bool _isDateOverdue(dynamic dateValue, {double remaining = 1.0}) =>
+      isDateOverdue(dateValue, remaining: remaining);
 
-  void _showPaymentDialog(
-    Map<String, dynamic> debt,
-  ) {
-    final controller =
-        TextEditingController();
+  void _showPaymentDialog(Map<String, dynamic> debt) {
+    final controller = TextEditingController();
+    final refController = TextEditingController();
+    final screenshotController = TextEditingController();
 
-    final double total =
-        (debt['total'] as num)
-            .toDouble();
+    const String gcashAccountName = 'Xienna Pugoy';
+    const String gcashAccountNumber = '09912968150';
 
-    final double paid =
-        (debt['paid'] as num)
-            .toDouble();
-
-    final double remaining =
-        total - paid;
+    final double total = (debt['total'] as num).toDouble();
+    final double paid = (debt['paid'] as num).toDouble();
+    final double remaining = total - paid;
 
     if (remaining <= 0 || debt['status'] == 'Paid') {
       _archivePaidPerson(debt);
@@ -2718,190 +2405,510 @@ class _HomePageState extends State<HomePage> {
 
     showDialog(
       context: context,
-
       builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(
-            'Payment for ${debt['name']}',
-          ),
-
-          content: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-
-            children: [
-              Text(
-                'Remaining balance: ₱${remaining.toStringAsFixed(2)}',
-
-                style:
-                    const TextStyle(
-                  color: primaryPink,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: controller,
-
-                keyboardType:
-                    const TextInputType
-                        .numberWithOptions(
-                  decimal: true,
-                ),
-
-                decoration:
-                    InputDecoration(
-                  labelText:
-                      'Payment Amount',
-
-                  prefixText: '₱ ',
-
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                      12,
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              actionsPadding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF005CE6).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: Color(0xFF005CE6),
+                      size: 24,
                     ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Payment for ${debt['name']}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Remaining: ₱${remaining.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: primaryPink,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'You can enter a partial payment.',
-
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      Colors.black54,
-                ),
-              ),
-            ],
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-
-              child:
-                  const Text('Cancel'),
-            ),
-
-            ElevatedButton(
-              onPressed: () {
-                final amount =
-                    double.tryParse(
-                  controller.text,
-                );
-
-                if (amount == null ||
-                    amount <= 0 ||
-                    amount > remaining) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Enter a valid payment amount.',
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // GCash Details Card
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF005CE6), Color(0xFF0044B3)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF005CE6,
+                              ).withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'GCash',
+                                        style: TextStyle(
+                                          color: Color(0xFF005CE6),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Express Send',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                IconButton(
+                                  constraints: const BoxConstraints(),
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(
+                                    Icons.copy_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  tooltip: 'Copy GCash Number',
+                                  onPressed: () {
+                                    Clipboard.setData(
+                                      const ClipboardData(
+                                        text: gcashAccountNumber,
+                                      ),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'GCash number 09912968150 copied to clipboard!',
+                                        ),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Account Name',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                            const Text(
+                              gcashAccountName,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'GCash Number',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  gcashAccountNumber,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(
+                                      const ClipboardData(
+                                        text: gcashAccountNumber,
+                                      ),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'GCash number 09912968150 copied!',
+                                        ),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(
+                                          Icons.copy_rounded,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Copy',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
 
-                  return;
-                }
+                      const SizedBox(height: 16),
 
-                final paymentData = {
-                  'debtId': debt['id']?.toString() ?? '',
-                  'name': debt['name']?.toString() ?? '',
-                  'amount': amount,
-                  'date': _currentDate(),
-                  'timestamp': DateTime.now().millisecondsSinceEpoch,
-                };
+                      // Quick Amount Chips
+                      const Text(
+                        'Amount to Pay',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          ChoiceChip(
+                            label: Text(
+                              'Full (₱${remaining.toStringAsFixed(2)})',
+                            ),
+                            selected:
+                                controller.text == remaining.toStringAsFixed(2),
+                            onSelected: (_) {
+                              setDialogState(() {
+                                controller.text = remaining.toStringAsFixed(2);
+                              });
+                            },
+                          ),
+                          if (remaining > 100)
+                            ChoiceChip(
+                              label: const Text('₱100'),
+                              selected: controller.text == '100',
+                              onSelected: (_) {
+                                setDialogState(() {
+                                  controller.text = '100';
+                                });
+                              },
+                            ),
+                          if (remaining > 500)
+                            ChoiceChip(
+                              label: const Text('₱500'),
+                              selected: controller.text == '500',
+                              onSelected: (_) {
+                                setDialogState(() {
+                                  controller.text = '500';
+                                });
+                              },
+                            ),
+                        ],
+                      ),
 
-                setState(() {
-                  debt['paid'] =
-                      paid + amount;
+                      const SizedBox(height: 8),
 
-                  debt['payments']
-                      .add({
-                    'amount': amount,
-                    'date':
-                        _currentDate(),
-                    'timestamp': DateTime.now().millisecondsSinceEpoch,
-                  });
+                      TextField(
+                        controller: controller,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Enter amount (e.g. 500)',
+                          prefixText: '₱ ',
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
 
-                  if (debt['paid'] >=
-                      debt['total']) {
-                    debt['paid'] =
-                        debt['total'];
+                      const SizedBox(height: 14),
 
-                    debt['status'] =
-                        'Paid';
+                      // Reference Number Field (Required: Exactly 13 digits)
+                      const Text(
+                        'GCash Reference Number (Exactly 13 digits) *',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: refController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 13,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: InputDecoration(
+                          hintText: 'e.g. 1002938419231',
+                          prefixIcon: const Icon(
+                            Icons.receipt_long_rounded,
+                            color: Color(0xFF005CE6),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          helperText:
+                              'Must be exactly 13 digits from your GCash receipt',
+                          helperStyle: const TextStyle(fontSize: 11),
+                        ),
+                      ),
 
-                    debt['promisedDate'] =
-                        null;
-                  }
-                });
+                      const SizedBox(height: 12),
 
-                Navigator.pop(
-                  dialogContext,
-                );
+                      // Screenshot / Proof Note (Optional)
+                      const Text(
+                        'Screenshot / Receipt Proof (Optional)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: screenshotController,
+                        decoration: InputDecoration(
+                          hintText: 'e.g. Screenshot sent on Messenger / Notes',
+                          prefixIcon: const Icon(
+                            Icons.image_outlined,
+                            color: Colors.black45,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final amount = double.tryParse(controller.text.trim());
+                    final refNumber = refController.text.trim();
+                    final screenshotNote = screenshotController.text.trim();
 
-                // Save payment directly to recentPayments collection in Firebase RTDB
-                _rtdb.saveRecentPayment(paymentData);
+                    if (amount == null || amount <= 0 || amount > remaining) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a valid payment amount.'),
+                        ),
+                      );
+                      return;
+                    }
 
-                if ((debt['paid'] as num)
-                        .toDouble() >=
-                    (debt['total'] as num)
-                        .toDouble()) {
-                  _archivePaidPerson(
-                    debt,
-                  );
-                } else {
-                  _rtdb.saveDebt(debt);
-                }
+                    final cleanRef = refNumber.replaceAll(RegExp(r'\D'), '');
 
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '₱${amount.toStringAsFixed(2)} payment recorded.',
+                    if (cleanRef.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          backgroundColor: Colors.redAccent,
+                          content: Text(
+                            'Please enter the GCash Reference Number.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (cleanRef.length < 13) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: Colors.redAccent,
+                          content: Text(
+                            'Lacking digits: GCash Reference Number must be exactly 13 digits (you entered ${cleanRef.length}/13).',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (cleanRef.length > 13) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: Colors.redAccent,
+                          content: Text(
+                            'Excess digits: GCash Reference Number must be exactly 13 digits (you entered ${cleanRef.length}/13).',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final paymentData = {
+                      'debtId': debt['id']?.toString() ?? '',
+                      'name': debt['name']?.toString() ?? '',
+                      'amount': amount,
+                      'date': _currentDate(),
+                      'timestamp': DateTime.now().millisecondsSinceEpoch,
+                      'method': 'GCash',
+                      'gcashName': gcashAccountName,
+                      'gcashNumber': gcashAccountNumber,
+                      'referenceNumber': cleanRef,
+                      if (screenshotNote.isNotEmpty)
+                        'screenshot': screenshotNote,
+                    };
+
+                    setState(() {
+                      debt['paid'] = paid + amount;
+
+                      debt['payments'].add({
+                        'amount': amount,
+                        'date': _currentDate(),
+                        'timestamp': DateTime.now().millisecondsSinceEpoch,
+                        'method': 'GCash',
+                        'referenceNumber': cleanRef,
+                        if (screenshotNote.isNotEmpty)
+                          'screenshot': screenshotNote,
+                      });
+
+                      if (debt['paid'] >= debt['total']) {
+                        debt['paid'] = debt['total'];
+                        debt['status'] = 'Paid';
+                        debt['promisedDate'] = null;
+                      }
+                    });
+
+                    Navigator.pop(dialogContext);
+
+                    // Save payment to Firebase RTDB
+                    _rtdb.saveRecentPayment(paymentData);
+
+                    if ((debt['paid'] as num).toDouble() >=
+                        (debt['total'] as num).toDouble()) {
+                      _archivePaidPerson(debt);
+                    } else {
+                      _rtdb.saveDebt(debt);
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFF005CE6),
+                        content: Text(
+                          '₱${amount.toStringAsFixed(2)} GCash payment recorded!\nRef: #$cleanRef',
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF005CE6),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                );
-              },
-
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    primaryPink,
-
-                foregroundColor:
-                    Colors.white,
-              ),
-
-              child: const Text(
-                'Record Payment',
-              ),
-            ),
-          ],
+                  child: const Text('Confirm GCash Payment'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
-
 
   void _showAddDebtForDebtorDialog(Map<String, dynamic> debt) {
     final amountController = TextEditingController();
@@ -2999,7 +3006,8 @@ class _HomePageState extends State<HomePage> {
                       onTap: () async {
                         final now = DateTime.now();
                         final today = DateTime(now.year, now.month, now.day);
-                        final initial = (selectedDueDate != null &&
+                        final initial =
+                            (selectedDueDate != null &&
                                 !selectedDueDate!.isBefore(today))
                             ? selectedDueDate!
                             : today.add(const Duration(days: 7));
@@ -3091,10 +3099,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             if (selectedDueDate != null)
                               IconButton(
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  size: 18,
-                                ),
+                                icon: const Icon(Icons.close_rounded, size: 18),
                                 color: primaryPink,
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
@@ -3132,13 +3137,15 @@ class _HomePageState extends State<HomePage> {
                 if (amount == null || amount <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Please enter a valid amount greater than 0.'),
+                      content: Text(
+                        'Please enter a valid amount greater than 0.',
+                      ),
                     ),
                   );
                   return;
                 }
 
-                    Navigator.pop(dialogContext);
+                Navigator.pop(dialogContext);
 
                 final desc = descriptionController.text.trim();
                 setState(() {
@@ -3179,15 +3186,15 @@ class _HomePageState extends State<HomePage> {
     String? initialDescription,
     double? initialAmount,
   }) {
-    final nameController =
-        TextEditingController(text: initialName ?? '');
+    final nameController = TextEditingController(text: initialName ?? '');
 
     final amountController = TextEditingController(
       text: initialAmount != null ? initialAmount.toStringAsFixed(2) : '',
     );
 
-    final descriptionController =
-        TextEditingController(text: initialDescription ?? '');
+    final descriptionController = TextEditingController(
+      text: initialDescription ?? '',
+    );
 
     DateTime? selectedDueDate;
 
@@ -3197,9 +3204,7 @@ class _HomePageState extends State<HomePage> {
         return AlertDialog(
           title: const Text(
             'Add New Debt',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
           content: StatefulBuilder(
             builder: (BuildContext dialogContext, StateSetter setDialogState) {
@@ -3315,7 +3320,8 @@ class _HomePageState extends State<HomePage> {
                       onTap: () async {
                         final now = DateTime.now();
                         final today = DateTime(now.year, now.month, now.day);
-                        final initial = (selectedDueDate != null &&
+                        final initial =
+                            (selectedDueDate != null &&
                                 !selectedDueDate!.isBefore(today))
                             ? selectedDueDate!
                             : today.add(const Duration(days: 7));
@@ -3407,10 +3413,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             if (selectedDueDate != null)
                               IconButton(
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  size: 18,
-                                ),
+                                icon: const Icon(Icons.close_rounded, size: 18),
                                 color: primaryPink,
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
@@ -3439,54 +3442,33 @@ class _HomePageState extends State<HomePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
 
-              child:
-                  const Text('Cancel'),
+              child: const Text('Cancel'),
             ),
 
             ElevatedButton(
               onPressed: () {
-                final name =
-                    nameController.text
-                        .trim();
+                final name = nameController.text.trim();
 
-                final amount =
-                    double.tryParse(
-                  amountController.text,
-                );
+                final amount = double.tryParse(amountController.text);
 
-                final description =
-                    descriptionController
-                        .text
-                        .trim();
+                final description = descriptionController.text.trim();
 
-                if (name.isEmpty ||
-                    amount == null ||
-                    amount <= 0) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
+                if (name.isEmpty || amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text(
-                        'Enter a valid name and amount.',
-                      ),
+                      content: Text('Enter a valid name and amount.'),
                     ),
                   );
 
                   return;
                 }
 
-
-                final existingIndex =
-                    debts.indexWhere(
+                final existingIndex = debts.indexWhere(
                   (debt) =>
-                      debt['name']
-                          .toString()
-                          .toLowerCase() ==
+                      debt['name'].toString().toLowerCase() ==
                       name.toLowerCase(),
                 );
 
@@ -3511,8 +3493,9 @@ class _HomePageState extends State<HomePage> {
                 } else {
                   targetDebt = {
                     'name': name,
-                    'description':
-                        description.isEmpty ? 'Personal debt' : description,
+                    'description': description.isEmpty
+                        ? 'Personal debt'
+                        : description,
                     'total': amount,
                     'paid': 0.0,
                     'dueDate': dueDateString,
@@ -3534,13 +3517,9 @@ class _HomePageState extends State<HomePage> {
                 _rtdb.saveDebt(targetDebt);
                 _rtdb.deletePaidPerson({'name': name});
 
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
 
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
                       existingIndex >= 0
@@ -3551,17 +3530,13 @@ class _HomePageState extends State<HomePage> {
                 );
               },
 
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    primaryPink,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryPink,
 
-                foregroundColor:
-                    Colors.white,
+                foregroundColor: Colors.white,
               ),
 
-              child:
-                  const Text('Add Debt'),
+              child: const Text('Add Debt'),
             ),
           ],
         );
@@ -3569,32 +3544,20 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-  void _archivePaidPerson(
-    Map<String, dynamic> debt,
-  ) {
+  void _archivePaidPerson(Map<String, dynamic> debt) {
     debt['promisedDate'] = null;
     debt['status'] = 'Paid';
 
-    final existing =
-        paidPeople.indexWhere(
+    final existing = paidPeople.indexWhere(
       (person) =>
-          person['name']
-              .toString()
-              .toLowerCase() ==
-          debt['name']
-              .toString()
-              .toLowerCase(),
+          person['name'].toString().toLowerCase() ==
+          debt['name'].toString().toLowerCase(),
     );
 
     if (existing >= 0) {
-      paidPeople[existing] = {
-        ...debt,
-      };
+      paidPeople[existing] = {...debt};
     } else {
-      paidPeople.add({
-        ...debt,
-      });
+      paidPeople.add({...debt});
     }
 
     debts.remove(debt);
@@ -3603,18 +3566,13 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
-
-  void _confirmDeleteDebt(
-    Map<String, dynamic> debt,
-  ) {
+  void _confirmDeleteDebt(Map<String, dynamic> debt) {
     showDialog(
       context: context,
 
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Delete Person?',
-          ),
+          title: const Text('Delete Person?'),
 
           content: Text(
             'This will remove ${debt['name']} and their active debt record from your collectibles.',
@@ -3623,13 +3581,10 @@ class _HomePageState extends State<HomePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
 
-              child:
-                  const Text('Cancel'),
+              child: const Text('Cancel'),
             ),
 
             ElevatedButton(
@@ -3639,32 +3594,22 @@ class _HomePageState extends State<HomePage> {
                 });
                 _rtdb.deleteDebt(debt);
 
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
 
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text(
-                      'Person removed from collectibles.',
-                    ),
+                    content: Text('Person removed from collectibles.'),
                   ),
                 );
               },
 
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    Colors.red,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
 
-                foregroundColor:
-                    Colors.white,
+                foregroundColor: Colors.white,
               ),
 
-              child:
-                  const Text('Delete'),
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -3672,10 +3617,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
   Widget _recentPayments() {
-    final List<Map<String, dynamic>> payments =
-        List<Map<String, dynamic>>.from(recentPayments);
+    final List<Map<String, dynamic>> payments = List<Map<String, dynamic>>.from(
+      recentPayments,
+    );
 
     if (payments.isEmpty) {
       final Map<String, Map<String, dynamic>> uniqueFallback = {};
@@ -3721,28 +3666,21 @@ class _HomePageState extends State<HomePage> {
       return Container(
         width: double.infinity,
 
-        padding:
-            const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
 
         decoration: BoxDecoration(
           color: Colors.white,
 
-          borderRadius:
-              BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16),
 
-          border:
-              Border.all(
-            color: borderPink,
-          ),
+          border: Border.all(color: borderPink),
         ),
 
         child: const Center(
           child: Text(
             'No payment history yet.',
 
-            style: TextStyle(
-              color: Colors.black54,
-            ),
+            style: TextStyle(color: Colors.black54),
           ),
         ),
       );
@@ -3754,75 +3692,52 @@ class _HomePageState extends State<HomePage> {
       if (tA != 0 && tB != 0) {
         return tB.compareTo(tA);
       }
-      return (b['date']?.toString() ?? '')
-          .compareTo(a['date']?.toString() ?? '');
+      return (b['date']?.toString() ?? '').compareTo(
+        a['date']?.toString() ?? '',
+      );
     });
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
 
-        borderRadius:
-            BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16),
 
-        border:
-            Border.all(
-          color: borderPink,
-        ),
+        border: Border.all(color: borderPink),
       ),
 
       child: Column(
-        children: payments
-            .take(5)
-            .map(
-              (payment) {
-                return ListTile(
-                  leading:
-                      const CircleAvatar(
-                    backgroundColor:
-                        Color(0xFFE8F7F0),
+        children: payments.take(5).map((payment) {
+          return ListTile(
+            leading: const CircleAvatar(
+              backgroundColor: Color(0xFFE8F7F0),
 
-                    child: Icon(
-                      Icons
-                          .arrow_downward_rounded,
-                      color: green,
-                    ),
-                  ),
+              child: Icon(Icons.arrow_downward_rounded, color: green),
+            ),
 
-                  title: Text(
-                    payment['name']?.toString() ?? '',
+            title: Text(
+              payment['name']?.toString() ?? '',
 
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.w600,
-                    ),
-                  ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
 
-                  subtitle:
-                      Text(
-                    payment['date']?.toString() ?? '',
-                  ),
+            subtitle: Text(
+              payment['referenceNumber'] != null &&
+                      payment['referenceNumber'].toString().isNotEmpty
+                  ? '${payment['date'] ?? ''} • GCash Ref: ${payment['referenceNumber']}'
+                  : payment['date']?.toString() ?? '',
+            ),
 
-                  trailing:
-                      Text(
-                    '+₱${((payment['amount'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(2)}',
+            trailing: Text(
+              '+₱${((payment['amount'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(2)}',
 
-                    style:
-                        const TextStyle(
-                      color: green,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                );
-              },
-            )
-            .toList(),
+              style: const TextStyle(color: green, fontWeight: FontWeight.bold),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
-
 
   void _showAllHistory() {
     showModalBottomSheet(
@@ -3833,30 +3748,19 @@ class _HomePageState extends State<HomePage> {
       builder: (sheetContext) {
         return SafeArea(
           child: SizedBox(
-            height:
-                MediaQuery.of(
-                      sheetContext,
-                    ).size.height *
-                    0.85,
+            height: MediaQuery.of(sheetContext).size.height * 0.85,
 
             child: Padding(
-              padding:
-                  const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
 
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
 
                 children: [
                   const Text(
                     'Payment History',
 
-                    style:
-                        TextStyle(
-                      fontSize: 21,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
                   ),
 
                   const SizedBox(height: 5),
@@ -3864,32 +3768,17 @@ class _HomePageState extends State<HomePage> {
                   const Text(
                     'All recorded payments',
 
-                    style:
-                        TextStyle(
-                      color: Colors.black54,
-                    ),
+                    style: TextStyle(color: Colors.black54),
                   ),
 
-                  const SizedBox(
-                      height: 15),
+                  const SizedBox(height: 15),
 
                   Expanded(
-                    child:
-                        ListView(
+                    child: ListView(
                       children: [
-                        ...debts.map(
-                          (debt) =>
-                              _historyPerson(
-                            debt,
-                          ),
-                        ),
+                        ...debts.map((debt) => _historyPerson(debt)),
 
-                        ...paidPeople.map(
-                          (person) =>
-                              _historyPerson(
-                            person,
-                          ),
-                        ),
+                        ...paidPeople.map((person) => _historyPerson(person)),
                       ],
                     ),
                   ),
@@ -3902,141 +3791,198 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-  Widget _historyPerson(
-    Map<String, dynamic> person,
-  ) {
-    final payments =
-        person['payments'] as List;
+  Widget _historyPerson(Map<String, dynamic> person) {
+    final payments = person['payments'] as List;
 
     return ExpansionTile(
-      leading:
-          const CircleAvatar(
-        backgroundColor:
-            lightPink,
+      leading: const CircleAvatar(
+        backgroundColor: lightPink,
 
-        child: Icon(
-          Icons.person,
-          color: primaryPink,
-        ),
+        child: Icon(Icons.person, color: primaryPink),
       ),
 
-      title: Text(
-        person['name'],
-      ),
+      title: Text(person['name']),
 
       subtitle: Text(
         '₱${(person['paid'] as num).toDouble().toStringAsFixed(2)} paid',
       ),
 
       children: payments.isEmpty
-          ? [
-              const ListTile(
+          ? [const ListTile(title: Text('No payments recorded.'))]
+          : payments.map((payment) {
+              return ListTile(
+                leading: const Icon(Icons.check_circle, color: green),
+
                 title: Text(
-                  'No payments recorded.',
+                  '₱${(payment['amount'] as num).toDouble().toStringAsFixed(2)}',
                 ),
-              ),
-            ]
-          : payments.map(
-              (payment) {
-                return ListTile(
-                  leading:
-                      const Icon(
-                    Icons
-                        .check_circle,
-                    color: green,
-                  ),
 
-                  title: Text(
-                    '₱${(payment['amount'] as num).toDouble().toStringAsFixed(2)}',
-                  ),
-
-                  subtitle:
-                      Text(
-                    payment['date'],
-                  ),
-                );
-              },
-            ).toList(),
+                subtitle: Text(
+                  payment['referenceNumber'] != null &&
+                          payment['referenceNumber'].toString().isNotEmpty
+                      ? '${payment['date'] ?? ''} • GCash Ref: ${payment['referenceNumber']}'
+                      : payment['date']?.toString() ?? '',
+                ),
+              );
+            }).toList(),
     );
   }
 
-
   void _showPaymentRequest() {
+    const String gcashName = 'Xienna Pugoy';
+    const String gcashNumber = '09912968150';
+
     showDialog(
       context: context,
-
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Payment Request',
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-
-          content: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-
+          title: Row(
             children: [
-              const Icon(
-                Icons.qr_code_2_rounded,
-
-                size: 120,
-
-                color: Colors.black87,
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'Your payment request can generate a shareable image with your QR code and payment details.',
-
-                textAlign:
-                    TextAlign.center,
-
-                style: TextStyle(
-                  color:
-                      Colors.black54,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF005CE6).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
                 ),
+                child: const Icon(
+                  Icons.qr_code_2_rounded,
+                  color: Color(0xFF005CE6),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'GCash Payment Request',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
           ),
-
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF005CE6), Color(0xFF0044B3)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF005CE6).withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'GCash Express Send',
+                        style: TextStyle(
+                          color: Color(0xFF005CE6),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.qr_code_2_rounded,
+                        size: 110,
+                        color: Color(0xFF005CE6),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Account Name',
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
+                    const Text(
+                      gcashName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'GCash Number',
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
+                    Text(
+                      gcashNumber,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Share this account with debtors so they can send payments directly via GCash.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-
-              child:
-                  const Text('Close'),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(
+                'Close',
+                style: TextStyle(color: Colors.black54),
+              ),
             ),
-
-            ElevatedButton(
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF005CE6),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const Icon(Icons.copy_rounded, size: 16),
+              label: const Text('Copy Details'),
               onPressed: () {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
+                Clipboard.setData(
+                  const ClipboardData(
+                    text:
+                        'GCash Payment Details\nName: $gcashName\nNumber: $gcashNumber',
+                  ),
+                );
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text(
-                      'Payment image generation can be connected here.',
-                    ),
+                    content: Text('Payment details copied to clipboard!'),
                   ),
                 );
               },
-
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    primaryPink,
-
-                foregroundColor:
-                    Colors.white,
-              ),
-
-              child:
-                  const Text('Generate'),
             ),
           ],
         );
@@ -4044,15 +3990,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
   void _showNotifications() {
-    final promised =
-        debts.where(
+    final promised = debts.where(
       (debt) =>
-          debt['promisedDate'] !=
-          null &&
-          (debt['total'] as num).toDouble() >
-              (debt['paid'] as num).toDouble(),
+          debt['promisedDate'] != null &&
+          (debt['total'] as num).toDouble() > (debt['paid'] as num).toDouble(),
     );
 
     showModalBottomSheet(
@@ -4061,82 +4003,79 @@ class _HomePageState extends State<HomePage> {
       builder: (sheetContext) {
         return SafeArea(
           child: Padding(
-            padding:
-                const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
 
             child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
 
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
                 const Text(
                   'Payment Reminders',
 
-                  style:
-                      TextStyle(
-                    fontSize: 20,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
 
-                const SizedBox(
-                    height: 15),
+                const SizedBox(height: 15),
 
                 if (promised.isEmpty)
                   const ListTile(
-                    leading: Icon(
-                      Icons
-                          .notifications_none,
-                      color: primaryPink,
-                    ),
+                    leading: Icon(Icons.notifications_none, color: primaryPink),
 
-                    title: Text(
-                      'No promised payments',
-                    ),
+                    title: Text('No promised payments'),
 
-                    subtitle: Text(
-                      'Promised payment dates will appear here.',
-                    ),
+                    subtitle: Text('Promised payment dates will appear here.'),
                   )
                 else
-                  ...promised.map(
-                    (debt) {
-                      return ListTile(
-                        leading:
-                            const Icon(
-                          Icons.alarm,
-                          color: orange,
-                        ),
+                  ...promised.map((debt) {
+                    final double remaining =
+                        ((debt['total'] as num?)?.toDouble() ?? 0.0) -
+                        ((debt['paid'] as num?)?.toDouble() ?? 0.0);
+                    final isOverdue = _isDateOverdue(
+                      debt['promisedDate'],
+                      remaining: remaining,
+                    );
+                    return ListTile(
+                      leading: Icon(
+                        isOverdue ? Icons.warning_rounded : Icons.alarm,
+                        color: isOverdue ? Colors.red.shade700 : orange,
+                      ),
 
-                        title: Text(
-                          debt['name'],
+                      title: Text(
+                        debt['name'],
+                        style: TextStyle(
+                          fontWeight: isOverdue
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isOverdue
+                              ? Colors.red.shade800
+                              : Colors.black87,
                         ),
+                      ),
 
-                        subtitle: Text(
-                          'Promised to pay on ${debt['promisedDate']}',
+                      subtitle: Text(
+                        isOverdue
+                            ? '⚠️ Overdue! Promised on ${debt['promisedDate']}'
+                            : 'Promised to pay on ${debt['promisedDate']}',
+                        style: TextStyle(
+                          color: isOverdue
+                              ? Colors.red.shade700
+                              : Colors.black54,
+                          fontWeight: isOverdue
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  }),
 
                 const ListTile(
-                  leading: Icon(
-                    Icons
-                        .notifications_active,
-                    color: primaryPink,
-                  ),
+                  leading: Icon(Icons.notifications_active, color: primaryPink),
 
-                  title: Text(
-                    'Reminder system',
-                  ),
+                  title: Text('Reminder system'),
 
-                  subtitle: Text(
-                    'Payment reminders will appear here.',
-                  ),
+                  subtitle: Text('Payment reminders will appear here.'),
                 ),
               ],
             ),
@@ -4145,7 +4084,6 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
-
 
   void _addNewDebtToPaidPerson(
     Map<String, dynamic> person,
@@ -4158,15 +4096,15 @@ class _HomePageState extends State<HomePage> {
     late final Map<String, dynamic> targetDebt;
 
     final existingIndex = debts.indexWhere(
-      (debt) =>
-          debt['name'].toString().toLowerCase() == name.toLowerCase(),
+      (debt) => debt['name'].toString().toLowerCase() == name.toLowerCase(),
     );
 
     if (existingIndex >= 0) {
       final existing = debts[existingIndex];
       existing['total'] = (existing['total'] as num).toDouble() + amount;
-      existing['description'] =
-          description.isEmpty ? existing['description'] : description;
+      existing['description'] = description.isEmpty
+          ? existing['description']
+          : description;
       existing['status'] = 'Active';
       existing['promisedDate'] = null;
       if (dueDate != null) {
@@ -4176,8 +4114,7 @@ class _HomePageState extends State<HomePage> {
     } else {
       targetDebt = {
         'name': name,
-        'description':
-            description.isEmpty ? 'Personal debt' : description,
+        'description': description.isEmpty ? 'Personal debt' : description,
         'total': amount,
         'paid': 0.0,
         'dueDate': dueDateString,
@@ -4196,48 +4133,37 @@ class _HomePageState extends State<HomePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Added ₱${amount.toStringAsFixed(2)} debt for $name.',
-        ),
+        content: Text('Added ₱${amount.toStringAsFixed(2)} debt for $name.'),
       ),
     );
   }
 
-
-  void _deletePaidPerson(
-    Map<String, dynamic> person,
-  ) {
+  void _deletePaidPerson(Map<String, dynamic> person) {
     setState(() {
       paidPeople.remove(person);
     });
     _rtdb.deletePaidPerson(person);
   }
 
-
   String _currentDate() {
-    final now =
-        DateTime.now();
+    final now = DateTime.now();
 
     return _formatDate(now);
   }
 }
 
-
-class PaidPeoplePage
-    extends StatefulWidget {
-  final List<Map<String, dynamic>>
-      paidPeople;
+class PaidPeoplePage extends StatefulWidget {
+  final List<Map<String, dynamic>> paidPeople;
 
   final void Function(
     Map<String, dynamic> person,
     double amount,
     String description, [
     String? dueDate,
-  ]) onAddNewDebt;
+  ])
+  onAddNewDebt;
 
-  final Function(
-    Map<String, dynamic>,
-  ) onDelete;
+  final Function(Map<String, dynamic>) onDelete;
 
   const PaidPeoplePage({
     super.key,
@@ -4250,29 +4176,21 @@ class PaidPeoplePage
   });
 
   @override
-  State<PaidPeoplePage> createState() =>
-      _PaidPeoplePageState();
+  State<PaidPeoplePage> createState() => _PaidPeoplePageState();
 }
 
-class _PaidPeoplePageState
-    extends State<PaidPeoplePage> {
-  static const Color primaryPink =
-      Color(0xFFFF2D75);
+class _PaidPeoplePageState extends State<PaidPeoplePage> {
+  static const Color primaryPink = Color(0xFFFF2D75);
 
-  static const Color backgroundColor =
-      Color(0xFFFFF5F7);
+  static const Color backgroundColor = Color(0xFFFFF5F7);
 
-  static const Color lightPink =
-      Color(0xFFFFE8EF);
+  static const Color lightPink = Color(0xFFFFE8EF);
 
-  static const Color borderPink =
-      Color(0xFFF8BBD0);
+  static const Color borderPink = Color(0xFFF8BBD0);
 
-  static const Color green =
-      Color(0xFF22A06B);
+  static const Color green = Color(0xFF22A06B);
 
-  final TextEditingController _paidSearchController =
-      TextEditingController();
+  final TextEditingController _paidSearchController = TextEditingController();
 
   @override
   void dispose() {
@@ -4293,13 +4211,17 @@ class _PaidPeoplePageState
       'September',
       'October',
       'November',
-      'December'
+      'December',
     ];
 
     return '${months[date.month - 1]} '
         '${date.day}, '
         '${date.year}';
   }
+
+  DateTime? _parseAnyDate(dynamic dateValue) => parseAnyDate(dateValue);
+  bool _isDateOverdue(dynamic dateValue, {double remaining = 1.0}) =>
+      isDateOverdue(dateValue, remaining: remaining);
 
   void _showAddDebtDialog(Map<String, dynamic> person) {
     final amountController = TextEditingController();
@@ -4389,7 +4311,8 @@ class _PaidPeoplePageState
                       onTap: () async {
                         final now = DateTime.now();
                         final today = DateTime(now.year, now.month, now.day);
-                        final initial = (selectedDueDate != null &&
+                        final initial =
+                            (selectedDueDate != null &&
                                 !selectedDueDate!.isBefore(today))
                             ? selectedDueDate!
                             : today.add(const Duration(days: 7));
@@ -4481,10 +4404,7 @@ class _PaidPeoplePageState
                             ),
                             if (selectedDueDate != null)
                               IconButton(
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  size: 18,
-                                ),
+                                icon: const Icon(Icons.close_rounded, size: 18),
                                 color: primaryPink,
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
@@ -4522,7 +4442,9 @@ class _PaidPeoplePageState
                 if (amount == null || amount <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Please enter a valid amount greater than 0.'),
+                      content: Text(
+                        'Please enter a valid amount greater than 0.',
+                      ),
                     ),
                   );
                   return;
@@ -4554,9 +4476,7 @@ class _PaidPeoplePageState
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final query = _paidSearchController.text.trim().toLowerCase();
     final filteredPaid = widget.paidPeople.where((p) {
       final name = (p['name'] ?? '').toString().toLowerCase();
@@ -4565,22 +4485,16 @@ class _PaidPeoplePageState
     }).toList();
 
     return Scaffold(
-      backgroundColor:
-          backgroundColor,
+      backgroundColor: backgroundColor,
 
       appBar: AppBar(
-        backgroundColor:
-            primaryPink,
+        backgroundColor: primaryPink,
 
-        foregroundColor:
-            Colors.white,
+        foregroundColor: Colors.white,
 
         title: const Text(
           'Paid People',
-          style: TextStyle(
-            fontWeight:
-                FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
 
@@ -4589,18 +4503,15 @@ class _PaidPeoplePageState
           : Column(
               children: [
                 Padding(
-                  padding:
-                      const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius:
-                          BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: borderPink),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black
-                              .withValues(alpha: 0.03),
+                          color: Colors.black.withValues(alpha: 0.03),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -4621,8 +4532,7 @@ class _PaidPeoplePageState
                           Icons.search_rounded,
                           color: green,
                         ),
-                        suffixIcon: _paidSearchController
-                                .text.isNotEmpty
+                        suffixIcon: _paidSearchController.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(
                                   Icons.close_rounded,
@@ -4630,15 +4540,13 @@ class _PaidPeoplePageState
                                   color: Colors.black45,
                                 ),
                                 onPressed: () {
-                                  _paidSearchController
-                                      .clear();
+                                  _paidSearchController.clear();
                                   setState(() {});
                                 },
                               )
                             : null,
                         border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(
+                        contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 13,
                         ),
@@ -4650,24 +4558,20 @@ class _PaidPeoplePageState
                   child: filteredPaid.isEmpty
                       ? Center(
                           child: Padding(
-                            padding:
-                                const EdgeInsets.all(30),
+                            padding: const EdgeInsets.all(30),
                             child: Column(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
                                   Icons.search_off_rounded,
                                   size: 48,
-                                  color:
-                                      Colors.grey.shade400,
+                                  color: Colors.grey.shade400,
                                 ),
                                 const SizedBox(height: 10),
                                 const Text(
                                   'No matching people found',
                                   style: TextStyle(
-                                    fontWeight:
-                                        FontWeight.bold,
+                                    fontWeight: FontWeight.bold,
                                     fontSize: 15,
                                   ),
                                 ),
@@ -4678,23 +4582,20 @@ class _PaidPeoplePageState
                                     color: Colors.black54,
                                     fontSize: 12,
                                   ),
-                                  textAlign:
-                                      TextAlign.center,
+                                  textAlign: TextAlign.center,
                                 ),
                               ],
                             ),
                           ),
                         )
                       : ListView.builder(
-                          padding:
-                              const EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 8,
                           ),
                           itemCount: filteredPaid.length,
                           itemBuilder: (context, index) {
-                            final person =
-                                filteredPaid[index];
+                            final person = filteredPaid[index];
                             return _personCard(person);
                           },
                         ),
@@ -4704,50 +4605,30 @@ class _PaidPeoplePageState
     );
   }
 
+  Widget _personCard(Map<String, dynamic> person) {
+    final double total = (person['total'] as num).toDouble();
 
-  Widget _personCard(
-    Map<String, dynamic> person,
-  ) {
-    final double total =
-        (person['total'] as num)
-            .toDouble();
-
-    final double paid =
-        (person['paid'] as num)
-            .toDouble();
+    final double paid = (person['paid'] as num).toDouble();
 
     return Container(
-      margin:
-          const EdgeInsets.only(
-        bottom: 14,
-      ),
+      margin: const EdgeInsets.only(bottom: 14),
 
-      padding:
-          const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
         color: Colors.white,
 
-        borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
+        borderRadius: BorderRadius.circular(18),
 
-        border:
-            Border.all(
-          color:
-              Colors.green.shade200,
-        ),
+        border: Border.all(color: Colors.green.shade200),
 
         boxShadow: [
           BoxShadow(
-            color: Colors.black
-                .withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: 0.04),
 
             blurRadius: 8,
 
-            offset:
-                const Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -4759,20 +4640,14 @@ class _PaidPeoplePageState
               CircleAvatar(
                 radius: 25,
 
-                backgroundColor:
-                    Colors.green.shade50,
+                backgroundColor: Colors.green.shade50,
 
                 child: Text(
-                  person['name']
-                      .toString()
-                      .substring(0, 1)
-                      .toUpperCase(),
+                  person['name'].toString().substring(0, 1).toUpperCase(),
 
-                  style:
-                      const TextStyle(
+                  style: const TextStyle(
                     color: green,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
                 ),
@@ -4782,18 +4657,15 @@ class _PaidPeoplePageState
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
 
                   children: [
                     Text(
                       person['name'],
 
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
 
@@ -4802,50 +4674,30 @@ class _PaidPeoplePageState
                     const Text(
                       'Fully paid',
 
-                      style:
-                          TextStyle(
-                        color: green,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: green, fontSize: 12),
                     ),
                   ],
                 ),
               ),
 
-              const Icon(
-                Icons
-                    .check_circle,
-                color: green,
-              ),
+              const Icon(Icons.check_circle, color: green),
             ],
           ),
 
           const SizedBox(height: 12),
 
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment
-                    .spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
             children: [
-              const Text(
-                'Total Paid',
-
-                style:
-                    TextStyle(
-                  color:
-                      Colors.black54,
-                ),
-              ),
+              const Text('Total Paid', style: TextStyle(color: Colors.black54)),
 
               Text(
                 '₱${paid.toStringAsFixed(2)}',
 
-                style:
-                    const TextStyle(
+                style: const TextStyle(
                   color: green,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
@@ -4856,44 +4708,22 @@ class _PaidPeoplePageState
           Row(
             children: [
               Expanded(
-                child:
-                    OutlinedButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: () {
-                    _showAddDebtDialog(
-                      person,
-                    );
+                    _showAddDebtDialog(person);
                   },
 
-                  icon: const Icon(
-                    Icons
-                        .add_circle_outline,
-                    size: 17,
-                  ),
+                  icon: const Icon(Icons.add_circle_outline, size: 17),
 
-                  label:
-                      const Text(
-                    'Add Debt',
-                  ),
+                  label: const Text('Add Debt'),
 
-                  style:
-                      OutlinedButton
-                          .styleFrom(
-                    foregroundColor:
-                        primaryPink,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryPink,
 
-                    side:
-                        const BorderSide(
-                      color:
-                          borderPink,
-                    ),
+                    side: const BorderSide(color: borderPink),
 
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        12,
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -4903,17 +4733,10 @@ class _PaidPeoplePageState
 
               IconButton(
                 onPressed: () {
-                  _confirmDelete(
-                    person,
-                  );
+                  _confirmDelete(person);
                 },
 
-                icon:
-                    const Icon(
-                  Icons
-                      .delete_outline,
-                  color: Colors.red,
-                ),
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
               ),
             ],
           ),
@@ -4922,26 +4745,21 @@ class _PaidPeoplePageState
     );
   }
 
-
   Widget _empty() {
     return Center(
       child: Padding(
-        padding:
-            const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(30),
 
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
 
           children: [
             Icon(
-              Icons
-                  .verified_user_outlined,
+              Icons.verified_user_outlined,
 
               size: 75,
 
-              color: green
-                  .withValues(alpha: 0.6),
+              color: green.withValues(alpha: 0.6),
             ),
 
             const SizedBox(height: 15),
@@ -4949,11 +4767,7 @@ class _PaidPeoplePageState
             const Text(
               'No Paid People Yet',
 
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 8),
@@ -4961,14 +4775,9 @@ class _PaidPeoplePageState
             const Text(
               'People who completely pay their debts can be found here.',
 
-              textAlign:
-                  TextAlign.center,
+              textAlign: TextAlign.center,
 
-              style: TextStyle(
-                color:
-                    Colors.black54,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.black54, fontSize: 13),
             ),
           ],
         ),
@@ -4976,61 +4785,41 @@ class _PaidPeoplePageState
     );
   }
 
-
-  void _confirmDelete(
-    Map<String, dynamic> person,
-  ) {
+  void _confirmDelete(Map<String, dynamic> person) {
     showDialog(
       context: context,
 
-      builder:
-          (dialogContext) {
+      builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Delete Record?',
-          ),
+          title: const Text('Delete Record?'),
 
-          content: Text(
-            'Remove ${person['name']} from Paid People?',
-          ),
+          content: Text('Remove ${person['name']} from Paid People?'),
 
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
 
-              child:
-                  const Text('Cancel'),
+              child: const Text('Cancel'),
             ),
 
             ElevatedButton(
               onPressed: () {
-                widget.onDelete(
-                  person,
-                );
+                widget.onDelete(person);
 
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
 
                 setState(() {});
               },
 
-              style:
-                  ElevatedButton
-                      .styleFrom(
-                backgroundColor:
-                    Colors.red,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
 
-                foregroundColor:
-                    Colors.white,
+                foregroundColor: Colors.white,
               ),
 
-              child:
-                  const Text('Delete'),
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -5039,19 +4828,12 @@ class _PaidPeoplePageState
   }
 }
 
+class PromissoryVaultPage extends StatefulWidget {
+  final List<Map<String, dynamic>> debts;
 
-class PromissoryVaultPage
-    extends StatefulWidget {
-  final List<Map<String, dynamic>>
-      debts;
+  final Future<void> Function(Map<String, dynamic>) onSetPromiseDate;
 
-  final Future<void> Function(
-    Map<String, dynamic>,
-  ) onSetPromiseDate;
-
-  final void Function(
-    Map<String, dynamic>,
-  ) onPayDebt;
+  final void Function(Map<String, dynamic>) onPayDebt;
 
   const PromissoryVaultPage({
     super.key,
@@ -5064,31 +4846,21 @@ class PromissoryVaultPage
   });
 
   @override
-  State<PromissoryVaultPage>
-      createState() =>
-          _PromissoryVaultPageState();
+  State<PromissoryVaultPage> createState() => _PromissoryVaultPageState();
 }
 
-class _PromissoryVaultPageState
-    extends State<
-        PromissoryVaultPage> {
-  static const Color primaryPink =
-      Color(0xFFFF2D75);
+class _PromissoryVaultPageState extends State<PromissoryVaultPage> {
+  static const Color primaryPink = Color(0xFFFF2D75);
 
-  static const Color backgroundColor =
-      Color(0xFFFFF5F7);
+  static const Color backgroundColor = Color(0xFFFFF5F7);
 
-  static const Color lightPink =
-      Color(0xFFFFE8EF);
+  static const Color lightPink = Color(0xFFFFE8EF);
 
-  static const Color borderPink =
-      Color(0xFFF8BBD0);
+  static const Color borderPink = Color(0xFFF8BBD0);
 
-  static const Color green =
-      Color(0xFF22A06B);
+  static const Color green = Color(0xFF22A06B);
 
-  final TextEditingController _vaultSearchController =
-      TextEditingController();
+  final TextEditingController _vaultSearchController = TextEditingController();
 
   @override
   void dispose() {
@@ -5097,19 +4869,15 @@ class _PromissoryVaultPageState
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final promisedDebts =
-        widget.debts.where(
-      (debt) =>
-          debt['promisedDate'] !=
-          null &&
-          (debt['total'] as num)
-                  .toDouble() >
-              (debt['paid'] as num)
-                  .toDouble(),
-    ).toList();
+  Widget build(BuildContext context) {
+    final promisedDebts = widget.debts
+        .where(
+          (debt) =>
+              debt['promisedDate'] != null &&
+              (debt['total'] as num).toDouble() >
+                  (debt['paid'] as num).toDouble(),
+        )
+        .toList();
 
     final String query = _vaultSearchController.text.trim().toLowerCase();
     final filteredPromised = promisedDebts.where((debt) {
@@ -5119,126 +4887,84 @@ class _PromissoryVaultPageState
     }).toList();
 
     return Scaffold(
-      backgroundColor:
-          backgroundColor,
+      backgroundColor: backgroundColor,
 
       appBar: AppBar(
-        backgroundColor:
-            primaryPink,
+        backgroundColor: primaryPink,
 
-        foregroundColor:
-            Colors.white,
+        foregroundColor: Colors.white,
 
         elevation: 0,
 
         title: const Text(
           'Promissory Vault',
 
-          style: TextStyle(
-            fontWeight:
-                FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
 
       body: promisedDebts.isEmpty
           ? _emptyVault()
           : ListView(
-              padding:
-                  const EdgeInsets.all(
-                16,
-              ),
+              padding: const EdgeInsets.all(16),
 
               children: [
                 Container(
-                  width:
-                      double.infinity,
+                  width: double.infinity,
 
-                  padding:
-                      const EdgeInsets.all(
-                    20,
-                  ),
+                  padding: const EdgeInsets.all(20),
 
-                  decoration:
-                      BoxDecoration(
-                    gradient:
-                        const LinearGradient(
-                      colors: [
-                        primaryPink,
-                        Color(
-                          0xFFFF4F8A,
-                        ),
-                      ],
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [primaryPink, Color(0xFFFF4F8A)],
                     ),
 
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      20,
-                    ),
+                    borderRadius: BorderRadius.circular(20),
 
                     boxShadow: [
                       BoxShadow(
-                        color: primaryPink
-                            .withValues(
-                          alpha: 0.20,
-                        ),
+                        color: primaryPink.withValues(alpha: 0.20),
 
                         blurRadius: 10,
 
-                        offset:
-                            const Offset(
-                          0,
-                          5,
-                        ),
+                        offset: const Offset(0, 5),
                       ),
                     ],
                   ),
 
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
                       const Icon(
-                        Icons
-                            .handshake_rounded,
+                        Icons.handshake_rounded,
 
-                        color:
-                            Colors.white,
+                        color: Colors.white,
 
                         size: 35,
                       ),
 
-                      const SizedBox(
-                          height: 10),
+                      const SizedBox(height: 10),
 
                       const Text(
                         'Promised Payments',
 
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white,
+                        style: TextStyle(
+                          color: Colors.white,
 
                           fontSize: 20,
 
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
 
-                      const SizedBox(
-                          height: 5),
+                      const SizedBox(height: 5),
 
                       Text(
                         '${promisedDebts.length} person(s) have a promised payment date.',
 
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white70,
+                        style: const TextStyle(
+                          color: Colors.white70,
 
                           fontSize: 13,
                         ),
@@ -5247,67 +4973,45 @@ class _PromissoryVaultPageState
                   ),
                 ),
 
-                const SizedBox(
-                    height: 20),
+                const SizedBox(height: 20),
 
-                ...promisedDebts.map(
-                  (debt) =>
-                      _promiseCard(
-                    debt,
-                  ),
-                ),
+                ...promisedDebts.map((debt) => _promiseCard(debt)),
               ],
             ),
     );
   }
 
+  Widget _promiseCard(Map<String, dynamic> debt) {
+    final double total = (debt['total'] as num).toDouble();
 
-  Widget _promiseCard(
-    Map<String, dynamic> debt,
-  ) {
-    final double total =
-        (debt['total'] as num)
-            .toDouble();
+    final double paid = (debt['paid'] as num).toDouble();
 
-    final double paid =
-        (debt['paid'] as num)
-            .toDouble();
+    final double remaining = total - paid;
 
-    final double remaining =
-        total - paid;
+    final bool isOverdue = isDateOverdue(
+      debt['promisedDate'],
+      remaining: remaining,
+    );
 
     return Container(
-      margin:
-          const EdgeInsets.only(
-        bottom: 14,
-      ),
+      margin: const EdgeInsets.only(bottom: 14),
 
-      padding:
-          const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
 
-      decoration:
-          BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
 
-        borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
+        borderRadius: BorderRadius.circular(18),
 
-        border:
-            Border.all(
-          color: borderPink,
-        ),
+        border: Border.all(color: isOverdue ? Colors.red.shade300 : borderPink),
 
         boxShadow: [
           BoxShadow(
-            color: Colors.black
-                .withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: 0.04),
 
             blurRadius: 8,
 
-            offset:
-                const Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -5319,22 +5023,15 @@ class _PromissoryVaultPageState
               CircleAvatar(
                 radius: 25,
 
-                backgroundColor:
-                    lightPink,
+                backgroundColor: isOverdue ? Colors.red.shade50 : lightPink,
 
                 child: Text(
-                  debt['name']
-                      .toString()
-                      .substring(0, 1)
-                      .toUpperCase(),
+                  debt['name'].toString().substring(0, 1).toUpperCase(),
 
-                  style:
-                      const TextStyle(
-                    color:
-                        primaryPink,
+                  style: TextStyle(
+                    color: isOverdue ? Colors.red.shade700 : primaryPink,
 
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
 
                     fontSize: 18,
                   ),
@@ -5345,47 +5042,38 @@ class _PromissoryVaultPageState
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
 
                   children: [
                     Text(
                       debt['name'],
 
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
 
-                    const SizedBox(
-                        height: 3),
+                    const SizedBox(height: 3),
 
                     Text(
                       'Remaining: ₱${remaining.toStringAsFixed(2)}',
 
-                      style:
-                          const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color:
-                            primaryPink,
-                        fontWeight:
-                            FontWeight.w600,
+                        color: isOverdue ? Colors.red.shade700 : primaryPink,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const Icon(
-                Icons
-                    .event_available_rounded,
-
-                color:
-                    primaryPink,
+              Icon(
+                isOverdue
+                    ? Icons.warning_amber_rounded
+                    : Icons.event_available_rounded,
+                color: isOverdue ? Colors.red.shade700 : primaryPink,
               ),
             ],
           ),
@@ -5393,76 +5081,63 @@ class _PromissoryVaultPageState
           const SizedBox(height: 15),
 
           Container(
-            width:
-                double.infinity,
+            width: double.infinity,
 
-            padding:
-                const EdgeInsets.all(
-              13,
-            ),
+            padding: const EdgeInsets.all(13),
 
-            decoration:
-                BoxDecoration(
-              color: lightPink,
+            decoration: BoxDecoration(
+              color: isOverdue ? Colors.red.shade50 : lightPink,
 
-              borderRadius:
-                  BorderRadius.circular(
-                12,
-              ),
+              borderRadius: BorderRadius.circular(12),
 
-              border:
-                  Border.all(
-                color: borderPink,
+              border: Border.all(
+                color: isOverdue ? Colors.red.shade300 : borderPink,
               ),
             ),
 
             child: Row(
               children: [
-                const Icon(
-                  Icons
-                      .calendar_month_rounded,
-
-                  color:
-                      primaryPink,
+                Icon(
+                  isOverdue
+                      ? Icons.warning_rounded
+                      : Icons.calendar_month_rounded,
+                  color: isOverdue ? Colors.red.shade700 : primaryPink,
                 ),
 
-                const SizedBox(
-                    width: 10),
+                const SizedBox(width: 10),
 
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
-                      const Text(
-                        'Promised to Pay On',
+                      Text(
+                        isOverdue
+                            ? 'Promised to Pay On (OVERDUE)'
+                            : 'Promised to Pay On',
 
-                        style:
-                            TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color:
-                              Colors.black54,
+                          color: isOverdue
+                              ? Colors.red.shade700
+                              : Colors.black54,
+                          fontWeight: isOverdue
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
 
-                      const SizedBox(
-                          height: 3),
+                      const SizedBox(height: 3),
 
                       Text(
-                        debt['promisedDate']
-                            .toString(),
+                        debt['promisedDate'].toString(),
 
-                        style:
-                            const TextStyle(
-                          color:
-                              primaryPink,
+                        style: TextStyle(
+                          color: isOverdue ? Colors.red.shade700 : primaryPink,
 
                           fontSize: 15,
 
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
@@ -5477,51 +5152,26 @@ class _PromissoryVaultPageState
           Row(
             children: [
               Expanded(
-                child:
-                    OutlinedButton.icon(
-                  onPressed:
-                      () async {
-                    await widget
-                        .onSetPromiseDate(
-                      debt,
-                    );
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await widget.onSetPromiseDate(debt);
 
                     if (mounted) {
                       setState(() {});
                     }
                   },
 
-                  icon:
-                      const Icon(
-                    Icons
-                        .edit_calendar_rounded,
+                  icon: const Icon(Icons.edit_calendar_rounded, size: 17),
 
-                    size: 17,
-                  ),
+                  label: const Text('Change Date'),
 
-                  label:
-                      const Text(
-                    'Change Date',
-                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryPink,
 
-                  style:
-                      OutlinedButton
-                          .styleFrom(
-                    foregroundColor:
-                        primaryPink,
+                    side: const BorderSide(color: borderPink),
 
-                    side:
-                        const BorderSide(
-                      color:
-                          borderPink,
-                    ),
-
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                        12,
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -5530,48 +5180,26 @@ class _PromissoryVaultPageState
               const SizedBox(width: 8),
 
               Expanded(
-                child:
-                    ElevatedButton.icon(
+                child: ElevatedButton.icon(
                   onPressed: () {
-                    widget.onPayDebt(
-                      debt,
-                    );
+                    widget.onPayDebt(debt);
 
-                    Navigator.pop(
-                      context,
-                    );
+                    Navigator.pop(context);
                   },
 
-                  icon:
-                      const Icon(
-                    Icons
-                        .payments_outlined,
+                  icon: const Icon(Icons.payments_outlined, size: 17),
 
-                    size: 17,
-                  ),
+                  label: const Text('Pay Debt'),
 
-                  label:
-                      const Text(
-                    'Pay Debt',
-                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryPink,
 
-                  style:
-                      ElevatedButton
-                          .styleFrom(
-                    backgroundColor:
-                        primaryPink,
-
-                    foregroundColor:
-                        Colors.white,
+                    foregroundColor: Colors.white,
 
                     elevation: 0,
 
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                        12,
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -5583,61 +5211,39 @@ class _PromissoryVaultPageState
     );
   }
 
-
   Widget _emptyVault() {
     return Center(
       child: Padding(
-        padding:
-            const EdgeInsets.all(
-          30,
-        ),
+        padding: const EdgeInsets.all(30),
 
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment
-                  .center,
+          mainAxisAlignment: MainAxisAlignment.center,
 
           children: [
             Icon(
-              Icons
-                  .handshake_outlined,
+              Icons.handshake_outlined,
 
               size: 75,
 
-              color: primaryPink
-                  .withValues(alpha: 0.6),
+              color: primaryPink.withValues(alpha: 0.6),
             ),
 
-            const SizedBox(
-                height: 15),
+            const SizedBox(height: 15),
 
             const Text(
               'No Promises Yet',
 
-              style:
-                  TextStyle(
-                fontSize: 21,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
             ),
 
-            const SizedBox(
-                height: 8),
+            const SizedBox(height: 8),
 
             const Text(
               'When a debtor promises a date to pay, their commitment will appear here.',
 
-              textAlign:
-                  TextAlign.center,
+              textAlign: TextAlign.center,
 
-              style:
-                  TextStyle(
-                color:
-                    Colors.black54,
-
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.black54, fontSize: 13),
             ),
           ],
         ),
