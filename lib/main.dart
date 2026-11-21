@@ -1,6 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'main_page.dart';
@@ -17,11 +15,6 @@ Future<void> main() async {
       if (error.code != 'duplicate-app') rethrow;
     }
   }
-
-  // User session persistence (commented out debug auto-signout so users stay logged in across app restarts)
-  // if (kDebugMode && FirebaseAuth.instance.currentUser != null) {
-  //   await FirebaseAuth.instance.signOut();
-  // }
 
   runApp(const MyApp());
 }
